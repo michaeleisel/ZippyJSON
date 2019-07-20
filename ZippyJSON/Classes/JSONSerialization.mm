@@ -5,17 +5,17 @@
 #import "JSONSerialization_Private.h"
 #import "JSONSerialization.h"
 #import <CoreFoundation/CoreFoundation.h>
-/*#import "reader.h"
+#import "reader.h"
 #import "allocators.h"
 #import "document.h"
-#import "writer.h"*/
+#import "writer.h"
 #import "simdjson.h"
 #import <Foundation/Foundation.h>
 #import <stdio.h>
 #import <math.h>
 #import "libbase64.h"
 
-/*using namespace rapidjson;
+using namespace rapidjson;
 
 typedef struct {
     char *string;
@@ -521,4 +521,3 @@ void JNTRunTests() {
 // todo: cases where it fails but continues like when it tries to decode data from a string probably needs to be fixed
 // todo: make sure that base64 works and does not overflow the buffer
 // todo: cindy json does not support 32-bit
-*/

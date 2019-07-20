@@ -38,7 +38,14 @@ TODO: Add long description of the pod here.
   # }
 
   s.public_header_files = 'ZippyJSON/Classes/Headers/**/*.h'
-  s.private_header_files = 'ZippyJSON/Classes/Headers/**/*.h'
+  s.private_header_files = 'ZippyJSON/Classes/Headers/Private/**/*.h'
+  s.library = 'c++'
+  s.pod_target_xcconfig = {
+     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++14',
+     'CLANG_CXX_LIBRARY' => 'libc++'
+  }
+  # s.frameworks = 'libc++', 'UIKit'
+  # s.xcconfig = { 'SWIFT_OBJC_BRIDGING_HEADER' => 'ZippyJSON/Classes/Headers/Bridging-Header.h' }
   # s.frameworks = 'UIKit', 'MapKit'
   # s.dependency 'AFNetworking', '~> 2.3'
 end
