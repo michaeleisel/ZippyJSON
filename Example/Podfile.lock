@@ -1,0 +1,16 @@
+PODS:
+  - ZippyJSON (0.1.0)
+
+DEPENDENCIES:
+  - ZippyJSON (from `../`)
+
+EXTERNAL SOURCES:
+  ZippyJSON:
+    :path: "../"
+
+SPEC CHECKSUMS:
+  ZippyJSON: fe5b38cfb9a49701d98987262f49cbf3af0f0714
+
+PODFILE CHECKSUM: b047cdaff7fbfc1c669447d9d70c51dbeba6c64a
+
+COCOAPODS: 1.7.5

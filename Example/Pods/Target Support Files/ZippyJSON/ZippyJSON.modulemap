@@ -1,0 +1,6 @@
+framework module ZippyJSON {
+  umbrella header "ZippyJSON-umbrella.h"
+
+  export *
+  module * { export * }
+}

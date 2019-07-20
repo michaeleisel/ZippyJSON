@@ -1,0 +1,22 @@
+{
+  "name": "ZippyJSON",
+  "version": "0.1.0",
+  "summary": "A short description of ZippyJSON.",
+  "description": "TODO: Add long description of the pod here.",
+  "homepage": "https://github.com/michaeleisel/ZippyJSON",
+  "license": {
+    "type": "MIT",
+    "file": "LICENSE"
+  },
+  "authors": {
+    "michaeleisel": "michael.eisel@gmail.com"
+  },
+  "source": {
+    "git": "https://github.com/michaeleisel/ZippyJSON.git",
+    "tag": "0.1.0"
+  },
+  "platforms": {
+    "ios": "8.0"
+  },
+  "source_files": "ZippyJSON/Classes/**/*"
+}
