@@ -15,7 +15,13 @@
 #import <math.h>
 #import "libbase64.h"
 
+#define SIJ
+
+#ifdef SIJ
+using namespace simdjson;
+#else
 using namespace rapidjson;
+#endif
 
 typedef struct {
     char *string;
@@ -100,23 +106,64 @@ JNTDecodingError *JNTFetchAndResetError() {
     return &tError;
 }
 
+__thread ParsedJson *doc = NULL;
+__thread const char *tLastKey = NULL;
+
 const void *JNTDocumentFromJSON(const void *data, NSInteger length) {
+#ifdef SIJ
     char *bytes = (char *)data;
     simdjson::ParsedJson *pj = new simdjson::ParsedJson;
     pj->allocateCapacity(length); // todo: why warning?
     const int res = simdjson::json_parse((const char *)data, length, *pj); // todo: handle error code
-    return NULL;
-    //Document *d = new Document; // needs freeing later via JNTReleaseDocument
-    //d->Parse(bytes);
+    assert(!res);
+    return new ParsedJson::iterator(*pj);
+#else
+    Document *d = new Document; // needs freeing later via JNTReleaseDocument
+    d->Parse(bytes);
     // check for error
     // cout << d->GetInt() << "\n";
-    //return d;
+    return d;
+#endif
 }
 
 void JNTReleaseDocument(const void *document) {
+#ifdef SIJ
+    delete (ParsedJson::iterator *)document;
+    delete (ParsedJson *)doc;
+#else
     delete (Document *)document;
+#endif
 }
 
+// static const char *kNotFound = (const char *)0x1;
+
+
+#ifdef SIJ
+bool JNTMoveToKey(ParsedJson::iterator *iterator, const char *key) {
+    bool found = iterator->move_to_key(key);
+    tLastKey = found ? key : NULL;
+    return found;
+}
+
+BOOL JNTDocumentContains(const void *valueAsVoid, const char *key, bool convertCase) {
+    ParsedJson::iterator *iter = (ParsedJson::iterator *)valueAsVoid;
+    bool found = false;
+    if (convertCase) {
+        JNTUpdateBufferForSnakeCase(key);
+        return JNTMoveToKey(iter, key);
+    } else {
+        return JNTMoveToKey(iter, key);
+    }
+}
+
+bool JNTIsAtEnd(const void *valueAsVoid) {
+    ParsedJson::iterator *iter = (ParsedJson::iterator *)valueAsVoid;
+    bool isAtEnd = !iter->next();
+    iter->prev();
+    return isAtEnd;
+}
+
+#else
 BOOL JNTDocumentContains(const void *valueAsVoid, const char *key, bool convertCase) {
     Value *value = (Value *)valueAsVoid;
     if (convertCase) {
@@ -126,7 +173,9 @@ BOOL JNTDocumentContains(const void *valueAsVoid, const char *key, bool convertC
         return value->HasMember(key);
     }
 }
+#endif
 
+#ifndef SIJ
 static const char *JNTStringForType(Type type) {
     switch (type) {
         case kNullType:
@@ -178,6 +227,7 @@ static void JNTHandleNumberDoesNotFit(T number, const char *type) {
         .type = JNTDecodingErrorTypeNumberDoesNotFit,
     };
 }
+#endif
 
 @implementation JNTCodingPath
 
@@ -196,6 +246,7 @@ static void JNTHandleNumberDoesNotFit(T number, const char *type) {
 
 @end
 
+#ifndef SIJ
 NSArray <JNTCodingPath *> *JNTComputeCodingPath(const void * const *containers, NSInteger count) {
     NSMutableArray *codingPath = [NSMutableArray array];
     for (int i = 0; i < count - 1; i++) {
@@ -224,6 +275,50 @@ NSArray <JNTCodingPath *> *JNTComputeCodingPath(const void * const *containers, 
     }
     return [codingPath copy];
 }
+#endif
+
+#ifdef SIJ
+namespace TypeChecker {
+    bool Object(ParsedJson::iterator *value) {
+        return value->is_object();
+    }
+    struct Double {
+        bool operator() (ParsedJson::iterator *value) {
+            return value->is_double();
+        }
+    };
+    //struct Uint64 {
+    bool Uint64(ParsedJson::iterator *value) {
+        return value->is_integer();
+    }
+    //};
+    //struct Int64 {
+    bool Int64(ParsedJson::iterator *value) {
+        return value->is_integer();
+    }
+    //};
+    bool String(ParsedJson::iterator *value) {
+        return value->is_string();
+    }
+
+    bool Size(ParsedJson::iterator *value) {
+        return value->is_integer();
+    }
+
+    bool USize(ParsedJson::iterator *value) {
+        return value->is_integer();
+    }
+
+    bool Bool(ParsedJson::iterator *value) {
+        return value->is_true() || value->is_false();
+    }
+
+    bool Array(ParsedJson::iterator *value) {
+        return value->is_array();
+    }
+}
+
+#else
 
 namespace TypeChecker {
     bool Object(Value *value) {
@@ -264,6 +359,53 @@ namespace TypeChecker {
         return value->IsArray();
     }
 }
+
+#endif
+
+#ifdef SIJ
+
+namespace Converter {
+    struct Double {
+        double operator() (ParsedJson::iterator *value) {
+            return value->get_double();
+        }
+    };
+    //struct Uint64 {
+    uint64_t Uint64(ParsedJson::iterator *value) {
+        return value->get_integer();
+    }
+    //};
+    //struct Int64 {
+    int64_t Int64(ParsedJson::iterator *value) {
+        return value->get_integer();
+    }
+    //};
+    NSInteger Size(ParsedJson::iterator *value) {
+        return (NSInteger)value->get_integer();
+    }
+
+    NSUInteger USize(ParsedJson::iterator *value) {
+        return (NSUInteger)value->get_integer();
+    }
+
+    const char *String(ParsedJson::iterator *value) {
+        return value->get_string();
+    }
+
+    bool Bool(ParsedJson::iterator *value) {
+        return value->is_true();
+    }
+
+    void Object(ParsedJson::iterator *value) {
+        value->down();
+    }
+
+    void Array(ParsedJson::iterator *value) {
+        value->down();
+    }
+}
+
+#else
 
 namespace Converter {
     struct Double {
@@ -306,6 +448,41 @@ namespace Converter {
     }
 }
 
+#endif
+
+#ifdef SIJ
+
+template <typename T, typename U, bool (*TypeCheck)(ParsedJson::iterator *), U (*Convert)(ParsedJson::iterator *)>
+T JNTDocumentDecode(ParsedJson::iterator *value) {
+    U number = Convert(value);
+    T result = (T)number;
+    return result;
+}
+
+const void *JNTDocumentDecodeArrayStart(const void *valueAsVoid) {
+    ParsedJson::iterator *value = (ParsedJson::iterator *)valueAsVoid;
+    value->down();
+    return value;
+}
+
+const void *JNTDocumentNextArrayElement(const void *iteratorAsVoid) {
+    ParsedJson::iterator *iterator = (ParsedJson::iterator *)iteratorAsVoid;
+    iterator->next();
+    return iterator;
+}
+
+BOOL JNTDocumentDecodeNil(const void *valueAsVoid) {
+    ParsedJson::iterator *value = (ParsedJson::iterator *)valueAsVoid;
+    return value->is_null();
+}
+
+bool JNTIsString(const void *valueAsVoid) {
+    ParsedJson::iterator *value = (ParsedJson::iterator *)valueAsVoid;
+    return value->is_string();
+}
+
+#else
+
 template <typename T, typename U, bool (*TypeCheck)(Value *), U (*Convert)(Value *)>
 T JNTDocumentDecode(Value *value) {
     if (RAPIDJSON_UNLIKELY(!TypeCheck(value))) {
@@ -343,6 +520,8 @@ bool JNTIsString(const void *valueAsVoid) {
     return value->IsString();
 }
 
+#endif
+
 __thread bool tThreadLocked = false;
 
 bool JNTAcquireThreadLock() {
@@ -364,6 +543,35 @@ void JNTUpdateFloatingPointStrings(const char *posInfString, const char *negInfS
     tNegInfString = negInfString;
     tNanString = nanString;
 }
+
+#ifdef SIJ
+
+double JNTDocumentDecode__Double(const void *valueAsVoid) {
+    ParsedJson::iterator *value = (ParsedJson::iterator *)valueAsVoid;
+    if (RAPIDJSON_UNLIKELY(!value->is_double())) {
+        if (value->is_string()) {
+            const char *string = value->get_string();
+            if (strcmp(string, tPosInfString) == 0) {
+                return INFINITY;
+            } else if (strcmp(string, tNegInfString) == 0) {
+                return -INFINITY;
+            } else if (strcmp(string, tNanString) == 0) {
+                return NAN;
+            }
+        }
+        // JNTHandleWrongType(value->get_type(), "double/float"); // todo: fix this for floats
+        return 0;
+    }
+    return value->get_double();
+}
+
+float JNTDocumentDecode__Float(const void *valueAsVoid) {
+    ParsedJson::iterator *value = (ParsedJson::iterator *)valueAsVoid;
+    double d = JNTDocumentDecode__Double(value);
+    return (float)d;
+}
+
+#else
 
 double JNTDocumentDecode__Double(const void *valueAsVoid) {
     Value *value = (Value *)valueAsVoid;
@@ -404,8 +612,10 @@ float JNTDocumentDecode__Float(const void *valueAsVoid) {
     return (float)d;
 }
 
+#endif
+
 NSDecimalNumber *JNTDocumentDecode__Decimal(const void *valueAsVoid) {
-    Value *value = (Value *)valueAsVoid;
+    // Value *value = (Value *)valueAsVoid;
     abort();
     return [[NSDecimalNumber alloc] initWithInt:0];
 }
@@ -420,18 +630,19 @@ static int JNTDataFromBase64String(size_t inLength, int32_t *outLength, const ch
 }
 
 void *JNTDocumentDecode__Data(const void *valueAsVoid, int32_t *outLength) {
-    Value *value = (Value *)valueAsVoid;
+    abort();
+    /*Value *value = (Value *)valueAsVoid;
     const char *str = JNTDocumentDecode__String(valueAsVoid);
     size_t inLength = value->GetStringLength();
     char *outBuffer = NULL;
     int errorStatus = JNTDataFromBase64String(inLength, outLength, str, &outBuffer);
     // todo: catch errors here
     // todo: compared to the default options of apples based sixty four decoder
-    return outBuffer;
+    return outBuffer;*/
 }
 
 NSDate *JNTDocumentDecode__Date(const void *valueAsVoid) {
-    Value *value = (Value *)valueAsVoid;
+    // Value *value = (Value *)valueAsVoid;
     abort();
     return [NSDate date];
 }
@@ -441,6 +652,26 @@ const char *JNTSnakeCaseFromCamel(const char *key) {
     JNTUpdateBufferForSnakeCase(key);
     return tSnakeCaseBuffer.string;
 }
+
+#ifdef SIJ
+
+__attribute__((always_inline)) const void *JNTDocumentFetchValue(const void *valueAsVoid, const char *key, bool convertCase) {
+    ParsedJson::iterator *value = (ParsedJson::iterator *)valueAsVoid;
+    if (tLastKey != key) {
+        if (convertCase) {
+            JNTUpdateBufferForSnakeCase(key);
+        }
+        value->move_to_key(key);
+    }
+    return value;
+}
+
+NSInteger JNTDocumentGetArrayCount(const void *valueAsVoid) {
+    ParsedJson::iterator *value = (ParsedJson::iterator *)valueAsVoid;
+    return 0;
+}
+
+#else
 
 __attribute__((always_inline)) const void *JNTDocumentFetchValue(const void *valueAsVoid, const char *key, bool convertCase) {
     Value *value = (Value *)valueAsVoid;
@@ -459,13 +690,6 @@ __attribute__((always_inline)) const void *JNTDocumentFetchValue(const void *val
     return &member->value;
 }
 
-static void JNTPrintValue(Value *value) {
-    printf("Value: %s\n", JNTStringForType(value->GetType()));
-    if (value->IsObject()) {
-    } else if (value->IsArray()) {
-    }
-}
-
 NSInteger JNTDocumentGetArrayCount(const void *valueAsVoid) {
     Value *value = (Value *)valueAsVoid;
     if (RAPIDJSON_UNLIKELY(!value->IsArray())) {
@@ -476,12 +700,32 @@ NSInteger JNTDocumentGetArrayCount(const void *valueAsVoid) {
     return value->GetArray().Size();
 }
 
+#endif
+
+#ifndef SIJ
+
+static void JNTPrintValue(Value *value) {
+    printf("Value: %s\n", JNTStringForType(value->GetType()));
+    if (value->IsObject()) {
+    } else if (value->IsArray()) {
+    }
+}
+
+#endif
+
 #define DECODE(A, B, C, D) DECODE_NAMED(A, B, C, D, A)
 
+#ifdef SIJ
+#define DECODE_NAMED(A, B, C, D, E) \
+A JNTDocumentDecode__##E(const void *value) { \
+    return JNTDocumentDecode<A, B, TypeChecker::C, Converter::D>((ParsedJson::iterator *)value); \
+}
+#else
 #define DECODE_NAMED(A, B, C, D, E) \
 A JNTDocumentDecode__##E(const void *value) { \
     return JNTDocumentDecode<A, B, TypeChecker::C, Converter::D>((Value *)value); \
 }
+#endif
 
 ENUMERATE(DECODE);
 
@@ -496,6 +740,8 @@ void JNTRunTests() {
         assert(outLength == i && memcmp(string.UTF8String, outBuffer, outLength) == 0);
     }
 }
+
+
 
 // todo: NSNull, UInt64, Int64
 // todo: concurrent usage

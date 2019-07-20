@@ -30,6 +30,7 @@ const void *JNTDocumentNextArrayElement(const void *iterator);
 void JNTUpdateFloatingPointStrings(const char *posInfString, const char *negInfString, const char *nanString);
 bool JNTAcquireThreadLock();
 void JNTReleaseThreadLock();
+bool JNTIsAtEnd(const void *valueAsVoid);
 
 const void *JNTDocumentFetchValue(const void *value, const char *key, bool convertCase);
 

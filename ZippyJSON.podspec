@@ -39,6 +39,8 @@ TODO: Add long description of the pod here.
 
   s.public_header_files = 'ZippyJSON/Classes/Headers/**/*.h'
   s.private_header_files = 'ZippyJSON/Classes/Headers/Private/**/*.h'
+  # vendor a lib? depend on another cocoapod?
+  # s.module_map = 'ZippyJSON/Classes/module.modulemap'
   s.library = 'c++'
   s.pod_target_xcconfig = {
      'CLANG_CXX_LANGUAGE_STANDARD' => 'c++14',

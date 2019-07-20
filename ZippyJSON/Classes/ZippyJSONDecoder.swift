@@ -20,20 +20,18 @@ private final class DocumentHolder {
     }
 }
 
-public final class QuickJSONDecoder {
-    public func decode<T : Decodable>(_ type: T.Type, from data: /*todo: inout*/ Data) throws {
+public final class ZippyJSONDecoder {
+    public func decode<T : Decodable>(_ type: T.Type, from data: /*todo: inout*/ Data) throws -> T {
         let lockAcquired = JNTAcquireThreadLock()
         guard lockAcquired else {
-            // return try decodeWithAppleDecoder(type, from: data)
-            return
+            return try decodeWithAppleDecoder(type, from: data)
         }
         defer {
             JNTReleaseThreadLock()
         }
-        try data.withUnsafeBytes { (bytes) /*-> T*/ in
+        return try data.withUnsafeBytes { (bytes) -> T in
             let value: UnsafeRawPointer = JNTDocumentFromJSON(bytes.baseAddress!, data.count)
-            return
-            /*defer {
+            defer {
                 JNTReleaseDocument(value)
             }
             let decoder = __JSONDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy)
@@ -41,21 +39,21 @@ public final class QuickJSONDecoder {
             if let error = decoder.swiftError {
                 throw error
             }
-            return result*/
+            return result
         }
     }
 
     func decodeWithAppleDecoder<T : Decodable>(_ type: T.Type, from data: Data) throws -> T {
         let appleDecoder = Foundation.JSONDecoder()
-        appleDecoder.dataDecodingStrategy = QuickJSONDecoder.convertDataDecodingStrategy(dataDecodingStrategy)
-        appleDecoder.dateDecodingStrategy = QuickJSONDecoder.convertDateDecodingStrategy(dateDecodingStrategy)
-        appleDecoder.keyDecodingStrategy = QuickJSONDecoder.convertKeyDecodingStrategy(keyDecodingStrategy)
-        appleDecoder.nonConformingFloatDecodingStrategy = QuickJSONDecoder.convertNonConformingFloatDecodingStrategy(nonConformingFloatDecodingStrategy)
+        appleDecoder.dataDecodingStrategy = ZippyJSONDecoder.convertDataDecodingStrategy(dataDecodingStrategy)
+        appleDecoder.dateDecodingStrategy = ZippyJSONDecoder.convertDateDecodingStrategy(dateDecodingStrategy)
+        appleDecoder.keyDecodingStrategy = ZippyJSONDecoder.convertKeyDecodingStrategy(keyDecodingStrategy)
+        appleDecoder.nonConformingFloatDecodingStrategy = ZippyJSONDecoder.convertNonConformingFloatDecodingStrategy(nonConformingFloatDecodingStrategy)
         appleDecoder.userInfo = userInfo
         return try appleDecoder.decode(type, from: data)
     }
 
-    static func convertNonConformingFloatDecodingStrategy(_ strategy: QuickJSONDecoder.NonConformingFloatDecodingStrategy) -> Foundation.JSONDecoder.NonConformingFloatDecodingStrategy {
+    static func convertNonConformingFloatDecodingStrategy(_ strategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy) -> Foundation.JSONDecoder.NonConformingFloatDecodingStrategy {
         switch strategy {
         case .convertFromString(let positiveInfinity, let negativeInfinity, let nan):
             return .convertFromString(positiveInfinity: positiveInfinity, negativeInfinity: negativeInfinity, nan: nan)
@@ -64,7 +62,7 @@ public final class QuickJSONDecoder {
         }
     }
 
-    static func convertDateDecodingStrategy(_ strategy: QuickJSONDecoder.DateDecodingStrategy) -> Foundation.JSONDecoder.DateDecodingStrategy {
+    static func convertDateDecodingStrategy(_ strategy: ZippyJSONDecoder.DateDecodingStrategy) -> Foundation.JSONDecoder.DateDecodingStrategy {
         switch strategy {
         case .custom(let converter):
             return Foundation.JSONDecoder.DateDecodingStrategy.custom(converter)
@@ -81,7 +79,7 @@ public final class QuickJSONDecoder {
         }
     }
 
-    static func convertDataDecodingStrategy(_ strategy: QuickJSONDecoder.DataDecodingStrategy) -> Foundation.JSONDecoder.DataDecodingStrategy {
+    static func convertDataDecodingStrategy(_ strategy: ZippyJSONDecoder.DataDecodingStrategy) -> Foundation.JSONDecoder.DataDecodingStrategy {
         switch strategy {
         case .base64:
             return Foundation.JSONDecoder.DataDecodingStrategy.base64
@@ -92,7 +90,7 @@ public final class QuickJSONDecoder {
         }
     }
 
-    static func convertKeyDecodingStrategy(_ strategy: QuickJSONDecoder.KeyDecodingStrategy) -> Foundation.JSONDecoder.KeyDecodingStrategy {
+    static func convertKeyDecodingStrategy(_ strategy: ZippyJSONDecoder.KeyDecodingStrategy) -> Foundation.JSONDecoder.KeyDecodingStrategy {
         switch strategy {
         case .convertFromSnakeCase:
             return Foundation.JSONDecoder.KeyDecodingStrategy.convertFromSnakeCase
@@ -180,29 +178,20 @@ final private class JSONDecodingStorage {
 final private class __JSONDecoder: Decoder {
     var userInfo: [CodingUserInfoKey : Any] = [:]
     var codingPath: [CodingKey] {
-        let array = containers.containers.withUnsafeBytes { buffer in
-            JNTComputeCodingPath(UnsafePointer(buffer.baseAddress?.assumingMemoryBound(to: UnsafeRawPointer?.self)), containers.count)
-        } ?? []
-        return array.map { pathComponent -> CodingKey in
-            if let stringValue = pathComponent.stringValue {
-                return JSONKey(stringValue: stringValue)!
-            } else {
-                return JSONKey(intValue: pathComponent.intValue)!
-            }
-        }
+        return containers.codingKeys
     }
     let value: UnsafeRawPointer
-    let keyDecodingStrategy: QuickJSONDecoder.KeyDecodingStrategy
+    let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
     let caseConversion: Bool
-    let dataDecodingStrategy: QuickJSONDecoder.DataDecodingStrategy
-    let dateDecodingStrategy: QuickJSONDecoder.DateDecodingStrategy
+    let dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy
+    let dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy
     var error: UnsafeMutablePointer<JNTDecodingError>
     var swiftError: Error?
     var stringsForFloats: Bool
 
     fileprivate var containers: JSONDecodingStorage
 
-    init(value: UnsafeRawPointer, keyDecodingStrategy: QuickJSONDecoder.KeyDecodingStrategy, dataDecodingStrategy: QuickJSONDecoder.DataDecodingStrategy, dateDecodingStrategy: QuickJSONDecoder.DateDecodingStrategy, nonConformingFloatDecodingStrategy: QuickJSONDecoder.NonConformingFloatDecodingStrategy) {
+    init(value: UnsafeRawPointer, keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy, dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy, dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy, nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy) {
         self.value = value
         self.containers = JSONDecodingStorage()
         self.error = JNTFetchAndResetError()!
@@ -429,7 +418,10 @@ extension __JSONDecoder {
         if result == nil {
             return ""
         }
-        return String(utf8String: result!)!
+        print("\(result)")
+        let s = String(utf8String: result!)!
+        print(s)
+        return s
     }
 
     fileprivate func unbox(_ value: UnsafeRawPointer!, as type: Double.Type) -> Double {
@@ -493,7 +485,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         if let count = count {
             return currentIndex >= count
         } else {
-            return false
+            return JNTIsAtEnd(currentValue)
         }
     }
 
@@ -503,7 +495,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
     fileprivate init(decoder: __JSONDecoder, startingValue: UnsafeRawPointer, count: Int) {
         self.currentValue = startingValue
-        self.count = count
+        self.count = nil // todo:
         self.currentIndex = 0
         self.decoder = decoder
     }
