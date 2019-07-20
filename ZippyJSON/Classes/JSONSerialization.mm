@@ -5,17 +5,17 @@
 #import "JSONSerialization_Private.h"
 #import "JSONSerialization.h"
 #import <CoreFoundation/CoreFoundation.h>
-#import "rapidjson/reader.h"
-#import "rapidjson/allocators.h"
-#import "rapidjson/document.h"
-#import "rapidjson/writer.h"
+/*#import "reader.h"
+#import "allocators.h"
+#import "document.h"
+#import "writer.h"*/
 #import "simdjson.h"
 #import <Foundation/Foundation.h>
 #import <stdio.h>
 #import <math.h>
 #import "libbase64.h"
 
-using namespace rapidjson;
+/*using namespace rapidjson;
 
 typedef struct {
     char *string;
@@ -378,7 +378,7 @@ double JNTDocumentDecode__Double(const void *valueAsVoid) {
                 return NAN;
             }
         }
-        JNTHandleWrongType(value->GetType(), "double/float" /*todo: fix this for floats*/);
+        JNTHandleWrongType(value->GetType(), "double/float"); // todo: fix this for floats
         return 0;
     }
     return value->GetDouble();
@@ -412,10 +412,10 @@ NSDecimalNumber *JNTDocumentDecode__Decimal(const void *valueAsVoid) {
 
 static int JNTDataFromBase64String(size_t inLength, int32_t *outLength, const char *str, char **outBuffer) {
     // *outBuffer = (char *)malloc(inLength * 3 / 4 + 4);
-    /*size_t outlen = 0;
-    int errorStatus = base64_decode(str, inLength, *outBuffer, &outlen, 0);
-    *outLength = (int32_t)outlen;
-    return errorStatus;*/
+    // size_t outlen = 0;
+    // int errorStatus = base64_decode(str, inLength, *outBuffer, &outlen, 0);
+    // *outLength = (int32_t)outlen;
+    // return errorStatus;
     return 0;
 }
 
@@ -521,3 +521,4 @@ void JNTRunTests() {
 // todo: cases where it fails but continues like when it tries to decode data from a string probably needs to be fixed
 // todo: make sure that base64 works and does not overflow the buffer
 // todo: cindy json does not support 32-bit
+*/

@@ -28,15 +28,17 @@ TODO: Add long description of the pod here.
   s.source           = { :git => 'https://github.com/michaeleisel/ZippyJSON.git', :tag => s.version.to_s }
   # s.social_media_url = 'https://twitter.com/<TWITTER_USERNAME>'
 
-  s.ios.deployment_target = '8.0'
+  s.ios.deployment_target = '10.0'
 
-  s.source_files = 'ZippyJSON/Classes/**/*'
+  s.source_files = 'ZippyJSON/Classes/**/*.{h,hh,mm,m,c,cpp,swift}'
+  # s.header_mappings_dir = 'ZippyJSON/Classes/Headers'
   
   # s.resource_bundles = {
   #   'ZippyJSON' => ['ZippyJSON/Assets/*.png']
   # }
 
-  s.public_header_files = 'Pod/Classes/**/*.h'
+  s.public_header_files = 'ZippyJSON/Classes/Headers/**/*.h'
+  s.private_header_files = 'ZippyJSON/Classes/Headers/**/*.h'
   # s.frameworks = 'UIKit', 'MapKit'
   # s.dependency 'AFNetworking', '~> 2.3'
 end
