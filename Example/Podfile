@@ -1,0 +1,6 @@
+use_frameworks!
+target 'ZippyJSON_Tests' do
+  pod 'ZippyJSON', :path => '../'
+  
+  
+end
