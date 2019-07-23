@@ -2,6 +2,7 @@
 
 import Foundation
 
+@available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *)
 fileprivate var _iso8601Formatter: ISO8601DateFormatter = {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = .withInternetDateTime
@@ -69,7 +70,11 @@ public final class ZippyJSONDecoder {
         case .deferredToDate:
             return Foundation.JSONDecoder.DateDecodingStrategy.deferredToDate
         case .iso8601:
-            return Foundation.JSONDecoder.DateDecodingStrategy.iso8601
+            if #available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *) {
+                return Foundation.JSONDecoder.DateDecodingStrategy.iso8601
+            } else {
+                fatalError("ISO8601DateFormatter is unavailable on this platform.")
+            }
         case .millisecondsSince1970:
             return Foundation.JSONDecoder.DateDecodingStrategy.millisecondsSince1970
         case .secondsSince1970:
@@ -131,6 +136,7 @@ public final class ZippyJSONDecoder {
         case deferredToDate
         case secondsSince1970
         case millisecondsSince1970
+        @available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *)
         case iso8601
         case formatted(DateFormatter)
         case custom((Decoder) throws -> Date)

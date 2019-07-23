@@ -31,23 +31,4 @@ TODO: Add long description of the pod here.
   s.ios.deployment_target = '10.0'
 
   s.source_files = 'Sources/**/*.{h,hh,mm,m,c,cpp,swift}'
-  # s.header_mappings_dir = 'ZippyJSON/Classes/Headers'
-  
-  # s.resource_bundles = {
-  #   'ZippyJSON' => ['ZippyJSON/Assets/*.png']
-  # }
-
-  s.public_header_files = 'Sources/Headers/**/*.h'
-  s.private_header_files = 'Sources/Headers/Private/**/*.h'
-  # vendor a lib? depend on another cocoapod?
-  # s.module_map = 'ZippyJSON/Classes/module.modulemap'
-  s.library = 'c++'
-  s.pod_target_xcconfig = {
-     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++14',
-     'CLANG_CXX_LIBRARY' => 'libc++'
-  }
-  # s.frameworks = 'libc++', 'UIKit'
-  # s.xcconfig = { 'SWIFT_OBJC_BRIDGING_HEADER' => 'ZippyJSON/Classes/Headers/Bridging-Header.h' }
-  # s.frameworks = 'UIKit', 'MapKit'
-  # s.dependency 'AFNetworking', '~> 2.3'
 end
