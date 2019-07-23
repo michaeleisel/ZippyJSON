@@ -1,6 +1,7 @@
 //Copyright (c) 2018 Michael Eisel. All rights reserved.
 
 import Foundation
+import ZippyJSONCFamily
 
 @available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *)
 fileprivate var _iso8601Formatter: ISO8601DateFormatter = {
