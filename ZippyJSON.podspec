@@ -30,15 +30,15 @@ TODO: Add long description of the pod here.
 
   s.ios.deployment_target = '10.0'
 
-  s.source_files = 'ZippyJSON/Classes/**/*.{h,hh,mm,m,c,cpp,swift}'
+  s.source_files = 'Sources/**/*.{h,hh,mm,m,c,cpp,swift}'
   # s.header_mappings_dir = 'ZippyJSON/Classes/Headers'
   
   # s.resource_bundles = {
   #   'ZippyJSON' => ['ZippyJSON/Assets/*.png']
   # }
 
-  s.public_header_files = 'ZippyJSON/Classes/Headers/**/*.h'
-  s.private_header_files = 'ZippyJSON/Classes/Headers/Private/**/*.h'
+  s.public_header_files = 'Sources/Headers/**/*.h'
+  s.private_header_files = 'Sources/Headers/Private/**/*.h'
   # vendor a lib? depend on another cocoapod?
   # s.module_map = 'ZippyJSON/Classes/module.modulemap'
   s.library = 'c++'
