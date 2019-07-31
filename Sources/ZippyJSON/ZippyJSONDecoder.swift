@@ -232,7 +232,7 @@ final private class __JSONDecoder: Decoder {
 
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
         let startingValue = JNTDocumentDecodeArrayStart(containers.topContainer)!
-        let result = JSONUnkeyedDecoder(decoder: self, startingValue: startingValue, count: JNTDocumentGetArrayCount(containers.topContainer))
+        let result = JSONUnkeyedDecoder(decoder: self, startingValue: startingValue)
         return result
     }
 
@@ -425,9 +425,7 @@ extension __JSONDecoder {
         if result == nil {
             return ""
         }
-        print("\(result)")
         let s = String(utf8String: result!)!
-        print(s)
         return s
     }
 
@@ -488,23 +486,18 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var count: Int?
     private unowned(unsafe) let decoder: __JSONDecoder
     var currentIndex: Int
-    var isAtEnd: Bool {
-        if let count = count {
-            return currentIndex >= count
-        } else {
-            return JNTIsAtEnd(currentValue)
-        }
-    }
+    var isAtEnd: Bool
 
     var codingPath: [CodingKey] {
         return decoder.codingPath
     }
 
-    fileprivate init(decoder: __JSONDecoder, startingValue: UnsafeRawPointer, count: Int) {
+    fileprivate init(decoder: __JSONDecoder, startingValue: UnsafeRawPointer) {
         self.currentValue = startingValue
-        self.count = nil // todo:
+        self.isAtEnd = JNTIsAtEnd(startingValue)
         self.currentIndex = 0
         self.decoder = decoder
+        self.count = nil // todo: slow?
     }
 
     func decodeNil() throws -> Bool {
@@ -518,7 +511,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
         let decoded = try decoder.unbox(currentValue, as: T.self, nextPathComponent: JSONKey(index: currentIndex))
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -929,3 +922,5 @@ private func _convertToSnakeCase(_ stringKey: String) -> String {
     }).joined(separator: "_")
     return result
 }
+
+// todo: SwiftPM Swift 5.1? runs on mac?
