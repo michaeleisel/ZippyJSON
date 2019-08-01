@@ -3,7 +3,7 @@
 import XCTest
 @testable import ZippyJSON
 
-struct TestCodingKey: CodingKey {
+/*struct TestCodingKey: CodingKey {
     var stringValue: String
 
     init?(stringValue: String) {
@@ -83,4 +83,4 @@ class ZippyJSONTests: XCTestCase {
 
     func testMatchingErrors() {
     }
-}
+}*/

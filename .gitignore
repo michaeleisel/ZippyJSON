@@ -20,6 +20,7 @@ DerivedData
 *.ipa
 /.build
 /Packages
+*.xcodeproj
 
 # Bundler
 .bundle

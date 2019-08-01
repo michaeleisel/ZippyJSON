@@ -25,6 +25,7 @@ private final class DocumentHolder {
 public final class ZippyJSONDecoder {
     public func decode<T : Decodable>(_ type: T.Type, from data: /*todo: inout*/ Data) throws -> T {
         let lockAcquired = JNTAcquireThreadLock()
+        let error: UnsafeMutablePointer<JNTDecodingError> = JNTFetchAndResetError()!
         guard lockAcquired else {
             return try decodeWithAppleDecoder(type, from: data)
         }
@@ -32,16 +33,20 @@ public final class ZippyJSONDecoder {
             JNTReleaseThreadLock()
         }
         return try data.withUnsafeBytes { (bytes) -> T in
-            let value: UnsafeRawPointer = JNTDocumentFromJSON(bytes.baseAddress!, data.count)
+            let value: UnsafeRawPointer? = JNTDocumentFromJSON(bytes.baseAddress!, data.count)
             defer {
                 JNTReleaseDocument(value)
             }
-            let decoder = __JSONDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy)
-            let result = try decoder.unbox(value, as: type, nextPathComponent: nil)
-            if let error = decoder.swiftError {
-                throw error
+            if let value = value {
+                let decoder = __JSONDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy)
+                let result = try decoder.unbox(value, as: type, nextPathComponent: nil)
+                if let error = decoder.swiftError {
+                    throw error
+                }
+                return result
+            } else {
+                throw swiftEror
             }
-            return result
         }
     }
 
@@ -201,7 +206,7 @@ final private class __JSONDecoder: Decoder {
     init(value: UnsafeRawPointer, keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy, dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy, dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy, nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy) {
         self.value = value
         self.containers = JSONDecodingStorage()
-        self.error = JNTFetchAndResetError()!
+        self.error = error
         self.keyDecodingStrategy = keyDecodingStrategy
         self.dataDecodingStrategy = dataDecodingStrategy
         self.dateDecodingStrategy = dateDecodingStrategy
@@ -358,7 +363,8 @@ final private class __JSONDecoder: Decoder {
             return DecodingError.keyNotFound(key!, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
         case .valueDoesNotExist:
             return DecodingError.valueNotFound(expectedType, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
-
+        case .parsingFailed:
+            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "The given data was not valid JSON.", underlyingError: debugDescription))
         case .none:
             return NSError(domain: "", code: 0, userInfo: [:])
         @unknown default:
