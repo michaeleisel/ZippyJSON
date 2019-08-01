@@ -423,7 +423,7 @@ extension __JSONDecoder {
         if result == nil {
             return ""
         }
-        return String(utf8String: result!)!
+        return String(cString: result!)
     }
 
     fileprivate func unbox(_ value: UnsafeRawPointer!, as type: Double.Type) -> Double {
