@@ -231,9 +231,7 @@ final private class __JSONDecoder: Decoder {
     }
 
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
-        let startingValue = JNTDocumentDecodeArrayStart(containers.topContainer)!
-        let result = JSONUnkeyedDecoder(decoder: self, startingValue: startingValue)
-        return result
+        return JSONUnkeyedDecoder(decoder: self, startingValue: containers.topContainer)
     }
 
     public func singleValueContainer() throws -> SingleValueDecodingContainer {
@@ -425,8 +423,7 @@ extension __JSONDecoder {
         if result == nil {
             return ""
         }
-        let s = String(utf8String: result!)!
-        return s
+        return String(utf8String: result!)!
     }
 
     fileprivate func unbox(_ value: UnsafeRawPointer!, as type: Double.Type) -> Double {
@@ -509,7 +506,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
             throw DecodingError.valueNotFound(type, DecodingError.Context(codingPath: codingPath + [JSONKey(index: currentIndex)], debugDescription: "Unkeyed container is at end."))
         }
 
-        let decoded = try decoder.unbox(currentValue, as: T.self, nextPathComponent: JSONKey(index: currentIndex))
+        let decoded = try decoder.unbox(JNTDocumentEnterDictionary(currentValue), as: T.self, nextPathComponent: JSONKey(index: currentIndex))
 
         currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
@@ -533,7 +530,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: UInt8.Type) -> UInt8 {
         let decoded = decoder.unbox(currentValue, as: UInt8.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -542,7 +539,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: UInt16.Type) -> UInt16 {
         let decoded = decoder.unbox(currentValue, as: UInt16.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -551,7 +548,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: UInt32.Type) -> UInt32 {
         let decoded = decoder.unbox(currentValue, as: UInt32.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -560,7 +557,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: UInt64.Type) -> UInt64 {
         let decoded = decoder.unbox(currentValue, as: UInt64.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -569,7 +566,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: Int8.Type) -> Int8 {
         let decoded = decoder.unbox(currentValue, as: Int8.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -578,7 +575,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: Int16.Type) -> Int16 {
         let decoded = decoder.unbox(currentValue, as: Int16.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -587,7 +584,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: Int32.Type) -> Int32 {
         let decoded = decoder.unbox(currentValue, as: Int32.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -596,7 +593,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: Int64.Type) -> Int64 {
         let decoded = decoder.unbox(currentValue, as: Int64.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -605,7 +602,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: Bool.Type) -> Bool {
         let decoded = decoder.unbox(currentValue, as: Bool.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -614,7 +611,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: String.Type) -> String {
         let decoded = decoder.unbox(currentValue, as: String.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -623,7 +620,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: Double.Type) -> Double {
         let decoded = decoder.unbox(currentValue, as: Double.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -632,7 +629,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: Float.Type) -> Float {
         let decoded = decoder.unbox(currentValue, as: Float.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -641,7 +638,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: Int.Type) -> Int {
         let decoded = decoder.unbox(currentValue, as: Int.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
@@ -650,7 +647,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     public func decode(_ type: UInt.Type) -> UInt {
         let decoded = decoder.unbox(currentValue, as: UInt.self)
 
-        currentValue = JNTDocumentNextArrayElement(currentValue)
+        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
 
         currentIndex += 1
         return decoded
