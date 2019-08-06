@@ -2,10 +2,7 @@
 <% types.each do |type| %>
     <%= inline %>public func decode(_ type: <%= type %>.Type) -> <%= type %> {
         let decoded = decoder.unbox(currentValue, as: <%= type %>.self)
-
-        currentValue = JNTDocumentNextArrayElement(currentValue, &isAtEnd)
-
-        currentIndex += 1
+        advanceArray()
         return decoded
     }
 

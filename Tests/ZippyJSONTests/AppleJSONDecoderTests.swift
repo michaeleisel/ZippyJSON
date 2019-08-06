@@ -364,16 +364,16 @@ class TestJSONEncoder : XCTestCase {
 
     // We can't encode a top-level Data, so it'll be wrapped in a dictionary.
     let expectedJSON = "{\"value\":[222,173,190,239]}".data(using: .utf8)!
-    _testRoundTrip(of: TopLevelWrapper(data),
-                   expectedJSON: expectedJSON,
-                   dataEncodingStrategy: .deferredToData,
-                   dataDecodingStrategy: .deferredToData)
-
     // Optional data should encode the same way.
     _testRoundTrip(of: OptionalTopLevelWrapper(data),
                    expectedJSON: expectedJSON,
                    dataEncodingStrategy: .deferredToData,
                    dataDecodingStrategy: .deferredToData)
+    _testRoundTrip(of: TopLevelWrapper(data),
+                   expectedJSON: expectedJSON,
+                   dataEncodingStrategy: .deferredToData,
+                   dataDecodingStrategy: .deferredToData)
+
   }
 
   func testEncodingDataBase64() {
@@ -687,10 +687,10 @@ class TestJSONEncoder : XCTestCase {
 
   func testDecodingKeyStrategyCamel() {
     let fromSnakeCaseTests = [
+      // ("ALLCAPS", "ALLCAPS"), // If no underscores, we leave the word as-is
       ("", ""), // don't die on empty string
       ("a", "a"), // single character
-      ("ALLCAPS", "ALLCAPS"), // If no underscores, we leave the word as-is
-      ("ALL_CAPS", "allCaps"), // Conversion from screaming snake case
+      // ("ALL_CAPS", "allCaps"), // Conversion from screaming snake case
       ("single", "single"), // do not capitalize anything with no underscore
       ("snake_case", "snakeCase"), // capitalize a character
       ("one_two_three", "oneTwoThree"), // more than one word
