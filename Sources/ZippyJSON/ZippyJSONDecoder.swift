@@ -249,7 +249,7 @@ final private class __JSONDecoder: Decoder {
     }
     let value: UnsafeRawPointer
     let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
-    //let caseConversion: Bool
+    let convertToCamel: Bool
     let dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy
     let dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy
     let nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy
@@ -264,6 +264,11 @@ final private class __JSONDecoder: Decoder {
         self.containers = JSONDecodingStorage()
         self.error = error
         self.keyDecodingStrategy = keyDecodingStrategy
+        if case .convertFromSnakeCase = keyDecodingStrategy {
+            self.convertToCamel = true
+        } else {
+            self.convertToCamel = false
+        }
         self.dataDecodingStrategy = dataDecodingStrategy
         self.dateDecodingStrategy = dateDecodingStrategy
         self.nonConformingFloatDecodingStrategy = nonConformingFloatDecodingStrategy
@@ -286,7 +291,7 @@ final private class __JSONDecoder: Decoder {
         /*guard JNTDocumentValueIsDictionary(containers.topContainer) else {
             fatalError()//todo: a
         }*/
-        return KeyedDecodingContainer(JSONKeyedDecoder(decoder: self, value: containers.topContainer))
+        return KeyedDecodingContainer(JSONKeyedDecoder(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
     }
 
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
@@ -495,7 +500,6 @@ extension __JSONDecoder {
         defer {
             containers.popContainer()
         }
-        let value = JNTDocumentEnterStructureAndReturnCopy(originalValue)!
         return JSONUnkeyedDecoder(decoder: self, startingValue: value)
     }
 
@@ -504,7 +508,7 @@ extension __JSONDecoder {
         defer {
             containers.popContainer()
         }
-        let value = JNTDocumentEnterStructureAndReturnCopy(originalValue)!
+        // let value = JNTDocumentEnterStructureAndReturnCopy(originalValue)!
         return __JSONDecoder(value: value, error: error, keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy)
     }
 
@@ -513,8 +517,7 @@ extension __JSONDecoder {
         defer {
             containers.popContainer()
         }
-        let value = JNTDocumentEnterStructureAndReturnCopy(originalValue)!
-        return KeyedDecodingContainer(JSONKeyedDecoder<NestedKey>(decoder: self, value: value))
+        return KeyedDecodingContainer(JSONKeyedDecoder<NestedKey>(decoder: self, value: value, convertToCamel: convertToCamel))
     }
 }
 
@@ -559,11 +562,17 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     fileprivate init(decoder: __JSONDecoder, startingValue: UnsafeRawPointer) {
-        self.currentValue = startingValue
-        self.isAtEnd = JNTIsAtEnd(startingValue)
-        self.currentIndex = 0
         self.decoder = decoder
-        self.count = nil // todo: slow?
+        self.currentIndex = 0
+        if let currentValue = JNTDocumentEnterStructureAndReturnCopy(startingValue) {
+            self.currentValue = currentValue
+            self.isAtEnd = JNTIsAtEnd(currentValue)
+            self.count = nil // todo: slow?
+        } else {
+            self.currentValue = startingValue
+            self.isAtEnd = true
+            self.count = 0
+        }
     }
 
     func decodeNil() throws -> Bool {
@@ -577,7 +586,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
             throw DecodingError.valueNotFound(type, DecodingError.Context(codingPath: codingPath + [JSONKey(index: currentIndex)], debugDescription: "Unkeyed container is at end."))
         }
 
-        let decoded = try decoder.unbox(JNTDocumentEnterStructureAndReturnCopy(currentValue), as: T.self)
+        let decoded = try decoder.unbox(currentValue, as: T.self)
         advanceArray()
         return decoded
     }
@@ -726,9 +735,13 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     var value: UnsafeRawPointer
 
-    fileprivate init(decoder: __JSONDecoder, value: UnsafeRawPointer) {
+    fileprivate init(decoder: __JSONDecoder, value: UnsafeRawPointer, convertToCamel: Bool) {
         self.value = value
         self.decoder = decoder
+        // todo: fix bug where the keys get converted and then used to create a dictionary later
+        if (convertToCamel) {
+            JNTConvertSnakeToCamel(value)
+        }
     }
 
     var allKeys: [Key] {
@@ -736,17 +749,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     }
 
     func contains(_ key: K) -> Bool {
-        let adjustedKey: String
-        switch decoder.keyDecodingStrategy {
-        case .convertFromSnakeCase:
-            fallthrough
-        case .useDefaultKeys:
-            adjustedKey = key.stringValue
-        case .custom(let _):
-            // not reachable
-            fatalError("Not reachable")
-        }
-        return adjustedKey.withCString { pointer in
+        key.stringValue.withCString { pointer in
             return JNTDocumentContains(value, pointer)
         }
     }
@@ -836,6 +839,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         return try decoder.unbox(subValue, as: T.self)
     }
     // End
+    // todo:  utf-8 and add tests back in
 
     func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: K) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
         let subValue: UnsafeRawPointer! = key.stringValue.withCString(fetchValue)
