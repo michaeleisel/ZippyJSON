@@ -23,7 +23,7 @@
 // SingleValueBegin
 <% types.each do |type| %>
     public func decode(_ type: <%= type %>.Type) -> <%= type %> {
-        return unbox(value, as: <%= type %>.self)
+        return unbox(containers.topContainer, as: <%= type %>.self)
     }
 
 <% end %>
@@ -31,7 +31,7 @@
 <% (types + ["T"]).each do |type| %>
     <%= inline %>fileprivate func decode<%= type == "T" ? "<T : Decodable>" : "" %>(_ type: <%= type %>.Type, forKey key: K) <%= throws(type) %>-> <%= type %> {
         let subValue: UnsafeRawPointer! = key.stringValue.withCString(fetchValue)
-        return <%= try(type) %>decoder.unbox(subValue, as: <%= type %>.self<%= type == "T" ? ", nextPathComponent: key" : "" %>)
+        return <%= try(type) %>decoder.unbox(subValue, as: <%= type %>.self)
     }
 
 <% end %>

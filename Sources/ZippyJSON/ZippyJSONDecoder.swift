@@ -35,44 +35,74 @@ private final class DocumentHolder {
 }
 
 public final class ZippyJSONDecoder {
+
+    private static var _ZJDSuppressWarnings: Bool = false
+    public static var ZJDSuppressWarnings: Bool {
+        get {
+            return _ZJDSuppressWarnings
+        }
+        set {
+            objc_sync_enter(self)
+            defer { objc_sync_exit(self) }
+            _ZJDSuppressWarnings = newValue
+        }
+    }
+
     public func decode<T : Decodable>(_ type: T.Type, from data: /*todo: inout*/ Data) throws -> T {
         if case .custom(_) = keyDecodingStrategy {
-            // The custom strategy is not supported because it is uncommon and makes things difficult
-            return try decodeWithAppleDecoder(type, from: data)
+            return try decodeWithAppleDecoder(type, from: data, reason: "Custom key decoding is not supported, because it is uncommon and makes efficient parsing difficult")
         }
-        let lockAcquired = JNTAcquireThreadLock()
-        guard lockAcquired else {
-            return try decodeWithAppleDecoder(type, from: data)
+        guard JNTAcquireThreadLock() else {
+            return try decodeWithAppleDecoder(type, from: data, reason: "A custom decoder was passed in that runs its own JSON decoding. This is not supported due to additional complexity")
         }
         defer {
             JNTReleaseThreadLock()
         }
-        let error: UnsafeMutablePointer<JNTDecodingError> = JNTFetchAndResetError()!
         return try data.withUnsafeBytes { (bytes) -> T in
-            let value: UnsafeRawPointer? = JNTDocumentFromJSON(bytes.baseAddress!, data.count, convertCase)
+            var retryReason: UnsafePointer<CChar>? = nil
+            let value: UnsafeRawPointer? = JNTDocumentFromJSON(bytes.baseAddress!, data.count, convertCase, &retryReason)
             defer {
                 JNTReleaseDocument(value)
             }
+            let error = JNTError()!
             if let value = value {
-                let decoder = __JSONDecoder(value: value, error: error, keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy)
+                let decoder = __JSONDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy)
                 let result = try decoder.unbox(value, as: type)
+                
                 if let error = decoder.swiftError {
                     throw error
+                } else {
+                    if error.pointee.type != .none {
+                        throw swiftErrorFromError(error.pointee)
+                    }
                 }
                 return result
             } else {
-                throw swiftErrorFromError(error.pointee, expectedType: T.self, key: nil, nextPathComponent: nil, codingPath: nil)
+                if error.pointee.type == .none {
+                    // The JSON is OK but it should be redone by apple
+                    var retryReasonString: String? = nil
+                    if let retryReason = retryReason {
+                        retryReasonString = String(utf8String: retryReason)!
+                    }
+                    return try decodeWithAppleDecoder(type, from: data, reason: retryReasonString)
+                } else {
+                    throw swiftErrorFromError(error.pointee)
+                }
             }
         }
     }
 
-    func decodeWithAppleDecoder<T : Decodable>(_ type: T.Type, from data: Data) throws -> T {
+    func decodeWithAppleDecoder<T : Decodable>(_ type: T.Type, from data: Data, reason: String?) throws -> T {
         let appleDecoder = Foundation.JSONDecoder()
         appleDecoder.dataDecodingStrategy = ZippyJSONDecoder.convertDataDecodingStrategy(dataDecodingStrategy)
         appleDecoder.dateDecodingStrategy = ZippyJSONDecoder.convertDateDecodingStrategy(dateDecodingStrategy)
         appleDecoder.keyDecodingStrategy = ZippyJSONDecoder.convertKeyDecodingStrategy(keyDecodingStrategy)
         appleDecoder.nonConformingFloatDecodingStrategy = ZippyJSONDecoder.convertNonConformingFloatDecodingStrategy(nonConformingFloatDecodingStrategy)
         appleDecoder.userInfo = userInfo
+        if !ZippyJSONDecoder.ZJDSuppressWarnings {
+            print("[ZippyJSONDecoder] Warning: fell back to using Apple's JSONDecoder. Reason: \(reason ?? ""). This message will only be printed the first time this happens. To suppress this message entirely, for all reasons, use `ZippyJSONDecoder.ZJDSuppressWarnings = true")
+            ZippyJSONDecoder.ZJDSuppressWarnings = true
+        }
         return try appleDecoder.decode(type, from: data)
     }
 
@@ -185,23 +215,21 @@ public final class ZippyJSONDecoder {
     }
 }
 
-fileprivate func swiftErrorFromError(_ error: JNTDecodingError, expectedType: Any.Type, key: String?, nextPathComponent: CodingKey?, codingPath: [CodingKey]?) -> Error {
-    let path: [CodingKey] = []
-    /*if let nextPathComponent = nextPathComponent {
-        path = codingPath + [nextPathComponent]
-    } else {
-        path = codingPath
-    }*/
+fileprivate func swiftErrorFromError(_ error: JNTDecodingError) -> Error {
     let debugDescription = String(utf8String: error.description)!
+    let path = error.value.map { computeCodingPath(value: $0) } ?? []
+    let keyString = error.key.map { String(utf8String: $0) ?? "" } ?? ""
+    let key = JSONKey(stringValue: keyString)!
+    let type = Any.self
     switch error.type {
     case .wrongType:
-        return DecodingError.typeMismatch(expectedType, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
+        return DecodingError.typeMismatch(type, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
     case .numberDoesNotFit:
         return DecodingError.dataCorrupted(DecodingError.Context(codingPath: path, debugDescription:debugDescription))
     case .keyDoesNotExist:
-        return DecodingError.keyNotFound(JSONKey(stringValue: key!)!, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
+        return DecodingError.keyNotFound(key, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
     case .valueDoesNotExist:
-        return DecodingError.valueNotFound(expectedType, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
+        return DecodingError.valueNotFound(type, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
     case .jsonParsingFailed:
         return DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: debugDescription))
     case .none:
@@ -235,17 +263,22 @@ final private class JSONDecodingStorage {
     }
 }
 
+private func computeCodingPath(value: UnsafeRawPointer!) -> [JSONKey] {
+    return JNTDocumentCodingPath(value).compactMap {
+        if let index = $0 as? NSNumber {
+            return JSONKey(index: index.intValue)
+        } else if let key = $0 as? NSString {
+            return JSONKey(stringValue: String(key))
+        }
+        return nil // Wouldn't happen
+    }
+}
+
 final private class __JSONDecoder: Decoder {
+    var errorType: Any.Type? = nil
     var userInfo: [CodingUserInfoKey : Any] = [:]
     var codingPath: [CodingKey] {
-        return JNTDocumentCodingPath(containers.topContainer).compactMap {
-            if let index = $0 as? NSNumber {
-                return JSONKey(index: index.intValue)
-            } else if let key = $0 as? NSString {
-                return JSONKey(stringValue: String(key))
-            }
-            return nil // Wouldn't happen
-        }
+        return computeCodingPath(value: containers.topContainer)
     }
     let value: UnsafeRawPointer
     let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
@@ -253,16 +286,14 @@ final private class __JSONDecoder: Decoder {
     let dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy
     let dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy
     let nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy
-    var error: UnsafeMutablePointer<JNTDecodingError>
     var swiftError: Error?
     var stringsForFloats: Bool
 
     fileprivate var containers: JSONDecodingStorage
 
-    init(value: UnsafeRawPointer, error: UnsafeMutablePointer<JNTDecodingError>, keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy, dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy, dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy, nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy) {
+    init(value: UnsafeRawPointer, keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy, dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy, dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy, nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy) {
         self.value = value
         self.containers = JSONDecodingStorage()
-        self.error = error
         self.keyDecodingStrategy = keyDecodingStrategy
         if case .convertFromSnakeCase = keyDecodingStrategy {
             self.convertToCamel = true
@@ -349,7 +380,6 @@ final private class __JSONDecoder: Decoder {
     }
 
     fileprivate func unbox(_ value: UnsafeRawPointer!, as type: Data.Type) throws -> Data {
-        var length: Int32 = 0
         switch dataDecodingStrategy {
         case .base64:
             let string = unbox(value, as: String.self)
@@ -357,8 +387,6 @@ final private class __JSONDecoder: Decoder {
                 throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: self.codingPath, debugDescription: "Encountered Data is not valid Base64."))
             }
             return data
-            /*let bytes = JNTDocumentDecode__Data(value, &length)!
-            return Data(bytesNoCopy: bytes, count: Int(length), deallocator: .free)*/
         case .deferredToData:
             return try Data(from: self)
         case .custom(let closure):
@@ -373,6 +401,7 @@ final private class __JSONDecoder: Decoder {
     }
 
     fileprivate func unbox<T>(_ value: UnsafeRawPointer!, as type: DictionaryWithoutKeyConversion.Type) throws -> T {
+        // todo: unit test for empty dict
         var result = [String : Any]()
         JNTDocumentForAllKeyValuePairs(value, { key, subValue in
             let keyString = String(cString: key!)
@@ -390,6 +419,10 @@ final private class __JSONDecoder: Decoder {
     }
 
     fileprivate func unbox_(_ value: UnsafeRawPointer!, as type: Decodable.Type) throws -> Any {
+        //todo: handle string case separately to reduce container pushing and popping?
+        containers.push(container: value)
+        defer { containers.popContainer() }
+        
         if type == Date.self || type == NSDate.self {
             return try unbox(value, as: Date.self)
         } else if type == Data.self || type == NSData.self {
@@ -406,9 +439,6 @@ final private class __JSONDecoder: Decoder {
          } else if let stringKeyedDictType = type as? DictionaryWithoutKeyConversion.Type {
              return try unbox(value, as: stringKeyedDictType)
          } else {
-            //todo: handle string case separately to reduce container pushing and popping?
-            containers.push(container: value)
-            defer { containers.popContainer() }
             return try type.init(from: self)
         }
     }
@@ -508,11 +538,10 @@ extension __JSONDecoder {
         defer {
             containers.popContainer()
         }
-        // let value = JNTDocumentEnterStructureAndReturnCopy(originalValue)!
-        return __JSONDecoder(value: value, error: error, keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy)
+        return __JSONDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy)
     }
 
-    fileprivate func unboxNestedContainer<NestedKey>(value originalValue: UnsafeRawPointer, keyedBy type: NestedKey.Type) -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
+    fileprivate func unboxNestedContainer<NestedKey>(value: UnsafeRawPointer, keyedBy type: NestedKey.Type) -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
         containers.push(container: value)
         defer {
             containers.popContainer()
@@ -566,7 +595,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         self.currentIndex = 0
         if let currentValue = JNTDocumentEnterStructureAndReturnCopy(startingValue) {
             self.currentValue = currentValue
-            self.isAtEnd = JNTIsAtEnd(currentValue)
+            self.isAtEnd = false
             self.count = nil // todo: slow?
         } else {
             self.currentValue = startingValue
@@ -736,11 +765,15 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     var value: UnsafeRawPointer
 
     fileprivate init(decoder: __JSONDecoder, value: UnsafeRawPointer, convertToCamel: Bool) {
-        self.value = value
+        if let innerValue = JNTDocumentEnterStructureAndReturnCopy(value) {
+            self.value = innerValue
+        } else {
+            self.value = JNTEmptyDictionaryIterator()
+        }
         self.decoder = decoder
         // todo: fix bug where the keys get converted and then used to create a dictionary later
         if (convertToCamel) {
-            JNTConvertSnakeToCamel(value)
+            JNTConvertSnakeToCamel(self.value)
         }
     }
 
@@ -839,6 +872,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         return try decoder.unbox(subValue, as: T.self)
     }
     // End
+    // todo: when it tries to create an int it uses the generic decode func for T, and not this one
     // todo:  utf-8 and add tests back in
 
     func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: K) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
@@ -877,59 +911,59 @@ extension __JSONDecoder : SingleValueDecodingContainer {
 
     // SingleValueBegin
     public func decode(_ type: UInt8.Type) -> UInt8 {
-        return unbox(value, as: UInt8.self)
+        return unbox(containers.topContainer, as: UInt8.self)
     }
 
     public func decode(_ type: UInt16.Type) -> UInt16 {
-        return unbox(value, as: UInt16.self)
+        return unbox(containers.topContainer, as: UInt16.self)
     }
 
     public func decode(_ type: UInt32.Type) -> UInt32 {
-        return unbox(value, as: UInt32.self)
+        return unbox(containers.topContainer, as: UInt32.self)
     }
 
     public func decode(_ type: UInt64.Type) -> UInt64 {
-        return unbox(value, as: UInt64.self)
+        return unbox(containers.topContainer, as: UInt64.self)
     }
 
     public func decode(_ type: Int8.Type) -> Int8 {
-        return unbox(value, as: Int8.self)
+        return unbox(containers.topContainer, as: Int8.self)
     }
 
     public func decode(_ type: Int16.Type) -> Int16 {
-        return unbox(value, as: Int16.self)
+        return unbox(containers.topContainer, as: Int16.self)
     }
 
     public func decode(_ type: Int32.Type) -> Int32 {
-        return unbox(value, as: Int32.self)
+        return unbox(containers.topContainer, as: Int32.self)
     }
 
     public func decode(_ type: Int64.Type) -> Int64 {
-        return unbox(value, as: Int64.self)
+        return unbox(containers.topContainer, as: Int64.self)
     }
 
     public func decode(_ type: Bool.Type) -> Bool {
-        return unbox(value, as: Bool.self)
+        return unbox(containers.topContainer, as: Bool.self)
     }
 
     public func decode(_ type: String.Type) -> String {
-        return unbox(value, as: String.self)
+        return unbox(containers.topContainer, as: String.self)
     }
 
     public func decode(_ type: Double.Type) -> Double {
-        return unbox(value, as: Double.self)
+        return unbox(containers.topContainer, as: Double.self)
     }
 
     public func decode(_ type: Float.Type) -> Float {
-        return unbox(value, as: Float.self)
+        return unbox(containers.topContainer, as: Float.self)
     }
 
     public func decode(_ type: Int.Type) -> Int {
-        return unbox(value, as: Int.self)
+        return unbox(containers.topContainer, as: Int.self)
     }
 
     public func decode(_ type: UInt.Type) -> UInt {
-        return unbox(value, as: UInt.self)
+        return unbox(containers.topContainer, as: UInt.self)
     }
 
     // End
