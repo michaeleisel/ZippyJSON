@@ -1127,7 +1127,7 @@ class TestJSONEncoder : XCTestCase {
     } catch {}
   }
 
-  private func _testRoundTrip<T>(of value: T,
+  func _testRoundTrip<T>(of value: T,
                                  expectedJSON json: Data? = nil,
                                  outputFormatting: JSONEncoder.OutputFormatting = [],
                                  dateEncodingStrategy: JSONEncoder.DateEncodingStrategy = .deferredToDate,
@@ -1604,7 +1604,7 @@ fileprivate struct _TestKey : CodingKey {
 }
 
 /// Wraps a type T so that it can be encoded at the top level of a payload.
-fileprivate struct TopLevelWrapper<T> : Codable, Equatable where T : Codable, T : Equatable {
+struct TopLevelWrapper<T> : Codable, Equatable where T : Codable, T : Equatable {
   let value: T
 
   init(_ value: T) {
@@ -1617,7 +1617,7 @@ fileprivate struct TopLevelWrapper<T> : Codable, Equatable where T : Codable, T 
 }
 
 /// Wraps a type T (as T?) so that it can be encoded at the top level of a payload.
-fileprivate struct OptionalTopLevelWrapper<T> : Codable, Equatable where T : Codable, T : Equatable {
+struct OptionalTopLevelWrapper<T> : Codable, Equatable where T : Codable, T : Equatable {
   let value: T?
 
   init(_ value: T) {
