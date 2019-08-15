@@ -38,15 +38,17 @@ private final class DocumentHolder {
 
 public final class ZippyJSONDecoder {
 
-    private static var _ZJDSuppressWarnings: Bool = false
-    public static var ZJDSuppressWarnings: Bool {
+    public var zjd_fullPrecisionFloatParsing = true
+    
+    private static var _zjd_suppressWarnings: Bool = false
+    public static var zjd_suppressWarnings: Bool {
         get {
-            return _ZJDSuppressWarnings
+            return _zjd_suppressWarnings
         }
         set {
             objc_sync_enter(self)
             defer { objc_sync_exit(self) }
-            _ZJDSuppressWarnings = newValue
+            _zjd_suppressWarnings = newValue
         }
     }
 
@@ -62,21 +64,20 @@ public final class ZippyJSONDecoder {
         }
         return try data.withUnsafeBytes { (bytes) -> T in
             var retryReason: UnsafePointer<CChar>? = nil
-            let value: Value? = JNTDocumentFromJSON(bytes.baseAddress!, data.count, convertCase, &retryReason)
+            let value: Value? = JNTDocumentFromJSON(bytes.baseAddress!, data.count, convertCase, &retryReason, zjd_fullPrecisionFloatParsing)
             defer {
                 JNTReleaseDocument(value)
             }
             let error = JNTError()!
             if let value = value {
                 let decoder = __JSONDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy)
+                if error.pointee.type != .none {
+                    throw swiftErrorFromError(error.pointee)
+                }
                 let result = try decoder.unbox(value, as: type)
                 
-                if let error = decoder.swiftError {
-                    throw error
-                } else {
-                    if error.pointee.type != .none {
-                        throw swiftErrorFromError(error.pointee)
-                    }
+                if error.pointee.type != .none {
+                    throw swiftErrorFromError(error.pointee)
                 }
                 return result
             } else {
@@ -101,9 +102,9 @@ public final class ZippyJSONDecoder {
         appleDecoder.keyDecodingStrategy = ZippyJSONDecoder.convertKeyDecodingStrategy(keyDecodingStrategy)
         appleDecoder.nonConformingFloatDecodingStrategy = ZippyJSONDecoder.convertNonConformingFloatDecodingStrategy(nonConformingFloatDecodingStrategy)
         appleDecoder.userInfo = userInfo
-        if !ZippyJSONDecoder.ZJDSuppressWarnings {
-            print("[ZippyJSONDecoder] Warning: fell back to using Apple's JSONDecoder. Reason: \(reason ?? ""). This message will only be printed the first time this happens. To suppress this message entirely, for all reasons, use `ZippyJSONDecoder.ZJDSuppressWarnings = true")
-            ZippyJSONDecoder.ZJDSuppressWarnings = true
+        if !ZippyJSONDecoder.zjd_suppressWarnings {
+            print("[ZippyJSONDecoder] Warning: fell back to using Apple's JSONDecoder. Reason: \(reason ?? ""). This message will only be printed the first time this happens. To suppress this message entirely, for all reasons, use `ZippyJSONDecoder.zjd_suppressWarnings = true")
+            ZippyJSONDecoder.zjd_suppressWarnings = true
         }
         return try appleDecoder.decode(type, from: data)
     }
@@ -383,15 +384,6 @@ final private class __JSONDecoder: Decoder {
         }
     }
 
-    /*fileprivate func unbox(_ value: Value, as type: Decimal.Type) -> Decimal {
-        if let decimal = value as? Decimal {
-            return decimal
-        } else {
-            let doubleValue = try self.unbox(value, as: Double.self)!
-            return Decimal(doubleValue)
-        }
-    }*/
-
     fileprivate func unbox(_ value: Value, as type: Data.Type) throws -> Data {
         switch dataDecodingStrategy {
         case .base64:
@@ -447,17 +439,11 @@ final private class __JSONDecoder: Decoder {
                                                                         debugDescription: "Invalid URL string."))
              }
             return url
-         //} else if type == Decimal.self || type == NSDecimalNumber.self {
-            //return unbox(value, as: Decimal.self)
         } else if let stringKeyedDictType = type as? DictionaryWithoutKeyConversion.Type {
             return try unbox(value, as: stringKeyedDictType)
         } else {
             return try type.init(from: self)
         }
-    }
-
-    func handleSwiftError(_ error: Error) {
-        self.swiftError = self.swiftError ?? error
     }
 }
 
@@ -1003,51 +989,5 @@ extension __JSONDecoder : SingleValueDecodingContainer {
 
     // End
 }
-
-public func _convertFromSnakeCase(_ stringKey: String) -> String {
-    guard !stringKey.isEmpty else { return stringKey }
-
-    // Find the first non-underscore character
-    guard let firstNonUnderscore = stringKey.firstIndex(where: { $0 != "_" }) else {
-        // Reached the end without finding an _
-        return stringKey
-    }
-
-    // Find the last non-underscore character
-    var lastNonUnderscore = stringKey.index(before: stringKey.endIndex)
-    while lastNonUnderscore > firstNonUnderscore && stringKey[lastNonUnderscore] == "_" {
-        stringKey.formIndex(before: &lastNonUnderscore)
-    }
-
-    let keyRange = firstNonUnderscore...lastNonUnderscore
-    let leadingUnderscoreRange = stringKey.startIndex..<firstNonUnderscore
-    let trailingUnderscoreRange = stringKey.index(after: lastNonUnderscore)..<stringKey.endIndex
-
-    var components = stringKey[keyRange].split(separator: "_")
-    let joinedString : String
-    if components.count == 1 {
-        // No underscores in key, leave the word as is - maybe already camel cased
-        joinedString = String(stringKey[keyRange])
-    } else {
-        joinedString = ([components[0].lowercased()] + components[1...].map { $0.capitalized }).joined()
-    }
-
-    // Do a cheap isEmpty check before creating and appending potentially empty strings
-    let result : String
-    if (leadingUnderscoreRange.isEmpty && trailingUnderscoreRange.isEmpty) {
-        result = joinedString
-    } else if (!leadingUnderscoreRange.isEmpty && !trailingUnderscoreRange.isEmpty) {
-        // Both leading and trailing underscores
-        result = String(stringKey[leadingUnderscoreRange]) + joinedString + String(stringKey[trailingUnderscoreRange])
-    } else if (!leadingUnderscoreRange.isEmpty) {
-        // Just leading
-        result = String(stringKey[leadingUnderscoreRange]) + joinedString
-    } else {
-        // Just trailing
-        result = joinedString + String(stringKey[trailingUnderscoreRange])
-    }
-    return result
-}
-
 
 // todo: take ikiga tests

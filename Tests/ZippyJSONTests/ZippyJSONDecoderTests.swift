@@ -122,7 +122,7 @@ class ZippyJSONTests: XCTestCase {
     func _testFailure<T>(of value: T.Type,
                            json: String,
                            outputFormatting: JSONEncoder.OutputFormatting = [],
-                           expectedError: DecodingError?,
+                           expectedError: DecodingError,
                            dateEncodingStrategy: JSONEncoder.DateEncodingStrategy = .deferredToDate,
                            dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy = .deferredToDate,
                            dataEncodingStrategy: JSONEncoder.DataEncodingStrategy = .base64,
@@ -139,19 +139,15 @@ class ZippyJSONTests: XCTestCase {
         do {
             try decoder.decode(T.self, from: json.data(using: .utf8)!)
         } catch {
-            guard let expError = expectedError else {
-                abort()
-                // return
-            }
             if let e = error as? DecodingError {
-                if (e != expError) { fatalError() }
+                if (e != expectedError) { fatalError() }
             } else {
                 abort()
             }
         }
     }
 
-    func _testRoundTrip<T>(of value: T,
+    func _testRoundTrip<T>(of value: T.Type,
                            json: String,
                            outputFormatting: JSONEncoder.OutputFormatting = [],
                            dateEncodingStrategy: JSONEncoder.DateEncodingStrategy = .deferredToDate,
@@ -163,13 +159,22 @@ class ZippyJSONTests: XCTestCase {
                            nonConformingFloatEncodingStrategy: JSONEncoder.NonConformingFloatEncodingStrategy = .throw,
                            nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy = .throw) where T : Decodable, T : Equatable {
         do {
+
+            let d = JSONDecoder()
+            d.dateDecodingStrategy = ZippyJSONDecoder.convertDateDecodingStrategy(dateDecodingStrategy)
+            d.dataDecodingStrategy = ZippyJSONDecoder.convertDataDecodingStrategy(dataDecodingStrategy)
+            d.nonConformingFloatDecodingStrategy = ZippyJSONDecoder.convertNonConformingFloatDecodingStrategy(nonConformingFloatDecodingStrategy)
+            d.keyDecodingStrategy = ZippyJSONDecoder.convertKeyDecodingStrategy(keyDecodingStrategy)
+            let apple = try d.decode(T.self, from: json.data(using: .utf8)!)
+
             let decoder = ZippyJSONDecoder()
             decoder.dateDecodingStrategy = dateDecodingStrategy
             decoder.dataDecodingStrategy = dataDecodingStrategy
             decoder.nonConformingFloatDecodingStrategy = nonConformingFloatDecodingStrategy
             decoder.keyDecodingStrategy = keyDecodingStrategy
             let decoded = try decoder.decode(T.self, from: json.data(using: .utf8)!)
-            assert(decoded == value)
+
+            assert(decoded == apple)
             // XCTAssertEqual(decoded, value)
         } catch {
             fatalError()
@@ -181,8 +186,8 @@ class ZippyJSONTests: XCTestCase {
         struct Test: Codable, Equatable {
             let a: Bool
         }
-        _testRoundTrip(of: Test(a: true), json: #"{"a": true}"#)
-        _testRoundTrip(of: TopLevelWrapper(Test(a: true)), json: #"{"value": {"a": true}}"#)
+        _testRoundTrip(of: Test.self, json: #"{"a": true}"#)
+        _testRoundTrip(of: TopLevelWrapper<Test>.self, json: #"{"value": {"a": true}}"#)
         _testFailure(of: Test.self, json: #"{"b": true}"#, expectedError: DecodingError.keyNotFound(JSONKey(stringValue: "a")!, DecodingError.Context(codingPath: [], debugDescription: "No value associated with a.")))
         _testFailure(of: Test.self, json: #"{}"#, expectedError: DecodingError.keyNotFound(JSONKey(stringValue: "a")!, DecodingError.Context(codingPath: [], debugDescription: "No value associated with a.")))
         _testFailure(of: TopLevelWrapper<Test>.self, json: #"{"value": {}}"#, expectedError: DecodingError.keyNotFound(JSONKey(stringValue: "a")!, DecodingError.Context(codingPath: [], debugDescription: "No value associated with a.")))
@@ -212,20 +217,87 @@ class ZippyJSONTests: XCTestCase {
         _testFailure(of: TopLevelWrapper<Test>.self, json: #"{"value": [true]}"#, expectedError: DecodingError.valueNotFound(Any.self, DecodingError.Context(codingPath: [JSONKey(stringValue: "value")!, JSONKey(index: 0)], debugDescription: "Cannot get next value -- unkeyed container is at end.")))
         _testFailure(of: TopLevelWrapper<Test>.self, json: #"{"value": []}"#, expectedError: DecodingError.valueNotFound(Any.self, DecodingError.Context(codingPath: [JSONKey(stringValue: "value")!], debugDescription: "Cannot get next value -- unkeyed container is at end.")))
         // Left over
-        _testRoundTrip(of: Test(a: false, b: true), json: "[false, true, false]")
+        _testRoundTrip(of: Test.self, json: "[false, true, false]")
         // Normals
-        _testRoundTrip(of: Test(a: false, b: true), json: "[false, true]")
-        _testRoundTrip(of: [false, true], json: "[false, true]")
+        _testRoundTrip(of: Test.self, json: "[false, true]")
+        _testRoundTrip(of: [[[[Int]]]].self, json: "[[[[]]]]")
+        _testRoundTrip(of: [[[[Int]]]].self, json: "[[[[2, 3]]]]")
+        _testRoundTrip(of: [Bool].self, json: "[false, true]")
         _testFailure(of: [Int].self, json: #"{"a": 1}"#, expectedError: DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: [JSONKey(stringValue: "a")!], debugDescription: "Tried to unbox array, but it wasn\'t an array")))
     }
 
+    func testInvalidJSON() {
+        _testFailure(of: [Int].self, json: "{a: 255}", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "The given data was not valid JSON. Error: Something went wrong while writing to the tape")))
+    }
+
+    func testInts() {
+        // _testRoundTrip(of: UInt8.self, json: "255")
+        _testFailure(of: [UInt8].self, json: "[256]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number 256 does not fit.")))
+        _testFailure(of: [UInt8].self, json: "[-1]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number -1 does not fit.")))
+        _testRoundTrip(of: [Int64].self, json: "[\(Int64.max)]")
+        _testRoundTrip(of: [Int64].self, json: "[\(Int64.min)]")
+        _testRoundTrip(of: [UInt64].self, json: "[\(UInt64.max)]")
+    }
+
+    func testDifferentTypes() {
+        struct Test: Codable, Equatable {
+            let i8: Int8
+            let i16: Int16
+            let i32: Int32
+            let i64: Int64
+            let u8: UInt8
+            let u16: UInt16
+            let u32: UInt32
+            let u64: UInt64
+            let u: UInt64
+            let i: Int
+        }
+        let expected = Test(i8: 1, i16: 2, i32: 3, i64: 4, u8: 5, u16: 6, u32: 7, u64: 8, u: 9, i: 10)
+        _testRoundTrip(of: Test.self, json: #"{"u8": 1, "u16": 2, "u32": 3, "u64": 4, "i8": 5, "i16": 6, "i32": 7, "i64": 8, "u": 9, "i": 10}"#)
+    }
+
+    func testAllKeys() {
+        struct Test: Codable {
+            let keys: [String]
+            init(from decoder: Decoder) throws {
+                let container = try! decoder.container(keyedBy: JSONKey.self)
+                keys = container.allKeys.map { $0.stringValue }
+            }
+        }
+        let test = try! ZippyJSONDecoder().decode(Test.self, from: #"{"a": 1, "b": 2}"#.data(using: .utf8)!)
+        XCTAssertEqual(test.keys, ["a", "b"])
+    }
+
     func testDoubleParsing() {
+        _testRoundTrip(of: [Double].self, json: "[0.0]")
+        _testRoundTrip(of: [Double].self, json: "[0.0000]")
+        _testRoundTrip(of: [Double].self, json: "[-0.0]")
+        _testRoundTrip(of: [Double].self, json: "[1.0]")
+        _testRoundTrip(of: [Double].self, json: "[1.11111]")
+        _testRoundTrip(of: [Double].self, json: "[1.11211e-2]")
+        _testRoundTrip(of: [Double].self, json: "[1.11211e200]")
         let testDoubles = try! decoder.decode(Canada.self, from: canadaData).features.first!.geometry.coordinates.flatMap { $0 }
         let appleDoubles = try! JSONDecoder().decode(Canada.self, from: canadaData).features.first!.geometry.coordinates.flatMap { $0 }
         let badOnes = zip(testDoubles, appleDoubles).filter { (t, a) -> Bool in
             t != a
         }
-        XCTAssertEqual(badOnes.count, 1)
+        XCTAssertEqual(badOnes.count, 0)
+    }
+
+    // Run with tsan
+    func testConcurrentUsage() {
+        let d = ZippyJSONDecoder()
+        let testResult = try! d.decode(TwitterPayload.self, from: twitterData)
+        var value: Int32 = 0
+        for _ in 0..<100 {
+            DispatchQueue.global(qos: .userInteractive).async {
+                assert(testResult == (try! d.decode(TwitterPayload.self, from: self.twitterData)))
+                OSAtomicIncrement32(&value)
+            }
+        }
+        while value < 100 {
+            usleep(UInt32(1e5))
+        }
     }
 
     func testCamelCase() {
@@ -252,5 +324,41 @@ class ZippyJSONTests: XCTestCase {
     }
 
     func testMatchingErrors() {
+    }
+
+    func testCodingKeys() {
+        struct Test: Codable, Equatable {
+            let a: Int
+            let c: Int
+
+            enum CodingKeys: String, CodingKey {
+                case a = "b"
+                case c
+            }
+        }
+
+        _testRoundTrip(of: Test.self, json: #"{"b": 1, "c": 2}"#)
+    }
+
+    func testNull() {
+        struct Test: Codable, Equatable {
+            let a: Int?
+        }
+        _testRoundTrip(of: Test.self, json: #"{"a": null}"#)
+    }
+
+    func run<T: Codable & Equatable>(_ filename: String, _ type: T.Type) {
+        let json = dataFromFile(filename + ".json")
+        _testRoundTrip(of: type, json: String(data: json, encoding: .utf8)!)
+    }
+
+    func testRealJsons() {
+        run("apache_builds", apache_builds.self)
+        run("random", random.self)
+        run("mesh", mesh.self)
+        run("canada", canada.self)
+        run("github_events", [github_events].self)
+        run("twitter", twitter.self)
+        run("twitterescaped", twitter.self)
     }
 }
