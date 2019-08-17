@@ -276,54 +276,22 @@ class ZippyJSONTests: XCTestCase {
         _testRoundTrip(of: [Double].self, json: "[1.11111]")
         _testRoundTrip(of: [Double].self, json: "[1.11211e-2]")
         _testRoundTrip(of: [Double].self, json: "[1.11211e200]")
-        let testDoubles = try! decoder.decode(Canada.self, from: canadaData).features.first!.geometry.coordinates.flatMap { $0 }
-        let appleDoubles = try! JSONDecoder().decode(Canada.self, from: canadaData).features.first!.geometry.coordinates.flatMap { $0 }
-        let badOnes = zip(testDoubles, appleDoubles).filter { (t, a) -> Bool in
-            t != a
-        }
-        XCTAssertEqual(badOnes.count, 0)
     }
 
     // Run with tsan
     func testConcurrentUsage() {
         let d = ZippyJSONDecoder()
-        let testResult = try! d.decode(TwitterPayload.self, from: twitterData)
+        let testResult = try! d.decode(Twitter.self, from: twitterData)
         var value: Int32 = 0
         for _ in 0..<100 {
             DispatchQueue.global(qos: .userInteractive).async {
-                assert(testResult == (try! d.decode(TwitterPayload.self, from: self.twitterData)))
+                assert(testResult == (try! d.decode(Twitter.self, from: self.twitterData)))
                 OSAtomicIncrement32(&value)
             }
         }
         while value < 100 {
             usleep(UInt32(1e5))
         }
-    }
-
-    func testCamelCase() {
-        let keyDecodingStrategies: [ZippyJSONDecoder.KeyDecodingStrategy] = [.useDefaultKeys, .convertFromSnakeCase]
-        for keyDecodingStrategy in keyDecodingStrategies {
-            let appleDecoder = Foundation.JSONDecoder()
-            let foundationKeyDecodingStrategy: Foundation.JSONDecoder.KeyDecodingStrategy = ZippyJSONDecoder.convertKeyDecodingStrategy(keyDecodingStrategy)
-            appleDecoder.keyDecodingStrategy = foundationKeyDecodingStrategy
-            let testDecoder = ZippyJSONDecoder()
-            testDecoder.keyDecodingStrategy = keyDecodingStrategy
-            switch keyDecodingStrategy {
-            case .useDefaultKeys:
-                let appleObject = try! appleDecoder.decode(TwitterPayload.self, from: twitterData)
-                let testObject = try! testDecoder.decode(TwitterPayload.self, from: twitterData)
-                XCTAssertEqual(appleObject, testObject)
-            case .convertFromSnakeCase:
-                let appleObject = try! appleDecoder.decode(TwitterPayloadC.self, from: twitterData)
-                let testObject = try! testDecoder.decode(TwitterPayloadC.self, from: twitterData)
-                XCTAssertEqual(appleObject, testObject)
-            default:
-                fatalError()
-            }
-        }
-    }
-
-    func testMatchingErrors() {
     }
 
     func testCodingKeys() {
@@ -347,7 +315,7 @@ class ZippyJSONTests: XCTestCase {
         _testRoundTrip(of: Test.self, json: #"{"a": null}"#)
     }
 
-    func run<T: Codable & Equatable>(_ filename: String, _ type: T.Type) {
+    func run<T: Codable & Equatable>(_ filename: String, _ type: T.Type, keyDecoding: ZippyJSONDecoder.KeyDecodingStrategy = .useDefaultKeys) {
         let json = dataFromFile(filename + ".json")
         _testRoundTrip(of: type, json: String(data: json, encoding: .utf8)!)
     }
@@ -391,7 +359,7 @@ class ZippyJSONTests: XCTestCase {
         run("mesh", mesh.self)
         run("canada", canada.self)
         run("github_events", [github_events].self)
-        run("twitter", twitter.self)
-        run("twitterescaped", twitter.self)
+        run("twitter", Twitter.self, keyDecoding: .convertFromSnakeCase)
+        run("twitterescaped", Twitter.self)
     }
 }
