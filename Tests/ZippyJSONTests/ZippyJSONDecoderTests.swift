@@ -352,6 +352,39 @@ class ZippyJSONTests: XCTestCase {
         _testRoundTrip(of: type, json: String(data: json, encoding: .utf8)!)
     }
 
+    func testArrayTypes() {
+        struct Test: Codable, Equatable {
+            init(from decoder: Decoder) throws {
+                var c = try! decoder.unkeyedContainer()
+                a = try! c.decode(Int8.self)
+                b = try! c.decode(Int16.self)
+                cc = try! c.decode(Int32.self)
+                d = try! c.decode(Int64.self)
+                e = try! c.decode(Int.self)
+                f = try! c.decode(UInt8.self)
+                g = try! c.decode(UInt16.self)
+                h = try! c.decode(UInt32.self)
+                i = try! c.decode(UInt64.self)
+                j = try! c.decode(UInt.self)
+                k = try! c.decode(Float.self)
+                l = try! c.decode(Double.self)
+            }
+            let a: Int8
+            let b: Int16
+            let cc: Int32
+            let d: Int64
+            let e: Int
+            let f: UInt8
+            let g: UInt16
+            let h: UInt32
+            let i: UInt64
+            let j: UInt
+            let k: Float
+            let l: Double
+        }
+        _testRoundTrip(of: Test.self, json: "[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]")
+    }
+
     func testRealJsons() {
         run("apache_builds", apache_builds.self)
         run("random", random.self)

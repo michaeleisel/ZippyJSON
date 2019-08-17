@@ -253,10 +253,6 @@ final private class JSONDecodingStorage {
 
     fileprivate init() {}
 
-    fileprivate var count: Int {
-        return self.containers.count
-    }
-
     fileprivate var topContainer: Value {
         precondition(!self.containers.isEmpty, "Empty container stack.")
         return self.containers.last!
@@ -328,9 +324,6 @@ final private class __JSONDecoder: Decoder {
     }
 
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
-        /*guard JNTDocumentValueIsDictionary(containers.topContainer) else {
-            fatalError()//todo: a
-        }*/
         return try KeyedDecodingContainer(JSONKeyedDecoder(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
     }
 
@@ -406,11 +399,10 @@ final private class __JSONDecoder: Decoder {
     }
 
     fileprivate func unbox<T>(_ value: Value, as type: DictionaryWithoutKeyConversion.Type) throws -> T {
-        // todo: unit test for empty dict
         var result = [String : Any]()
         JNTDocumentForAllKeyValuePairs(value, { key, subValue in
             let keyString = String(cString: key!)
-            result[keyString] = try! self.unbox_(subValue!, as: type.elementType)// todo: throw exception instead of crash
+            result[keyString] = try! self.unbox_(subValue!, as: type.elementType)
         })
         if let resultCasted = result as? T {
             return resultCasted
@@ -424,7 +416,6 @@ final private class __JSONDecoder: Decoder {
     }
 
     fileprivate func unbox_(_ value: Value, as type: Decodable.Type) throws -> Any {
-        //todo: handle string case separately to reduce container pushing and popping?
         containers.push(container: value)
         defer { containers.popContainer() }
         
@@ -524,7 +515,6 @@ extension __JSONDecoder {
 
     // End
 
-    // todo: test when decoding Canada with Twitter data
     fileprivate func unboxNestedUnkeyedContainer(value originalValue: Value) throws -> UnkeyedDecodingContainer {
         containers.push(container: originalValue)
         defer {
@@ -599,7 +589,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         if let currentValue = JNTDocumentEnterStructureAndReturnCopy(startingValue) {
             self.currentValue = currentValue
             self.isAtEnd = false
-            self.count = nil // todo: slow?
+            self.count = nil // is this slow?
         } else {
             self.currentValue = startingValue
             self.isAtEnd = true
@@ -989,5 +979,3 @@ extension __JSONDecoder : SingleValueDecodingContainer {
 
     // End
 }
-
-// todo: take ikiga tests

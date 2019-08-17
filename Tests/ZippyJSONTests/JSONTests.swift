@@ -1,5 +1,6 @@
 import XCTest
 import Foundation
+@testable import ZippyJSON
 
 var newParser: ZippyJSONDecoder {
     return ZippyJSONDecoder()
