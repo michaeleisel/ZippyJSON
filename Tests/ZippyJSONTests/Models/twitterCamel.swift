@@ -9,7 +9,7 @@
 // for types that require the use of JSONAny, nor will the implementation of Hashable be
 // synthesized for types that have collections (such as arrays or dictionaries).
 
-import Foundation
+/*import Foundation
 
 // MARK: - Welcome
 struct TwitterCamel: Codable, Equatable {
@@ -259,4 +259,4 @@ struct UserEntities: Codable, Equatable {
 // MARK: - Description
 struct Description: Codable, Equatable {
     let urls: [URLElement]
-}
+}*/

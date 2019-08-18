@@ -2,12 +2,13 @@
 
 import Foundation
 import ZippyJSONCFamily
+import JJLISO8601DateFormatter
 
 typealias Value = UnsafeRawPointer
 
 @available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *)
-fileprivate var _iso8601Formatter: ISO8601DateFormatter = {
-    let formatter = ISO8601DateFormatter()
+fileprivate var _iso8601Formatter: JJLISO8601DateFormatter = {
+    let formatter = JJLISO8601DateFormatter()
     formatter.formatOptions = .withInternetDateTime
     return formatter
 }()
@@ -128,7 +129,7 @@ public final class ZippyJSONDecoder {
             if #available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *) {
                 return Foundation.JSONDecoder.DateDecodingStrategy.iso8601
             } else {
-                fatalError("ISO8601DateFormatter is unavailable on this platform.")
+                fatalError("JJLISO8601DateFormatter is unavailable on this platform.")
             }
         case .millisecondsSince1970:
             return Foundation.JSONDecoder.DateDecodingStrategy.millisecondsSince1970
@@ -359,7 +360,7 @@ final private class __JSONDecoder: Decoder {
 
                 return date
             } else {
-                fatalError("ISO8601DateFormatter is unavailable on this platform.")
+                fatalError("JJLISO8601DateFormatter is unavailable on this platform.")
             }
 
         case .formatted(let formatter):
