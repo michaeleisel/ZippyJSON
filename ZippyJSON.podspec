@@ -28,11 +28,12 @@ TODO: Add long description of the pod here.
   s.source           = { :git => 'https://github.com/michaeleisel/ZippyJSON.git', :tag => s.version.to_s }
   # s.social_media_url = 'https://twitter.com/<TWITTER_USERNAME>'
 
-  s.ios.deployment_target = '10.0'
-  s.osx.deployment_target = '10.12'
+  s.ios.deployment_target = '11.0'
+  s.osx.deployment_target = '10.13'
 
   s.source_files = 'Sources/**/*.{h,hh,mm,m,c,cpp,swift}'
   s.dependency 'ZippyJSONCFamily'
+  s.dependency 'JJLISO8601DateFormatter'
 
   s.test_spec 'Tests' do |test_spec|
     test_spec.source_files = 'Tests/*.{swift,h,m}'

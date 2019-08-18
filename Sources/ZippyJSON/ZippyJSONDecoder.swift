@@ -226,7 +226,7 @@ fileprivate func swiftErrorFromError(_ error: JNTDecodingError) -> Error {
     let key = JSONKey(stringValue: keyString)!
     // If there was an actual key given, remove the last part of the path and let the DecodingError take care of adding the passed in key to the end
     if key.stringValue != "" {
-        path.popLast()
+        let _ = path.popLast()
     }
     let type = Any.self
     switch error.type {
