@@ -34,6 +34,7 @@ TODO: Add long description of the pod here.
   s.source_files = 'Sources/**/*.{h,hh,mm,m,c,cpp,swift}'
   s.dependency 'ZippyJSONCFamily'
   s.dependency 'JJLISO8601DateFormatter'
+  s.swift_version = '5.0'
 
   s.test_spec 'Tests' do |test_spec|
     test_spec.source_files = 'Tests/*.{swift,h,m}'
