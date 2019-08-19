@@ -36,9 +36,10 @@ TODO: Add long description of the pod here.
   s.dependency 'JJLISO8601DateFormatter', '~> 0.1.2'
   s.swift_version = '5.0'
 
-  s.test_spec 'Tests' do |test_spec|
-    test_spec.requires_app_host = true
-    test_spec.source_files = 'Tests/**/*.{swift,h,m}'
-    test_spec.resources = 'Tests/**/*.json'
-  end
+  # todo: put this back in once the cocoapod bugs around it get resolved
+  #s.test_spec 'Tests' do |test_spec|
+    #test_spec.requires_app_host = true
+    #test_spec.source_files = 'Tests/**/*.{swift,h,m}'
+    #test_spec.resources = 'Tests/**/*.json'
+  #end
 end
