@@ -32,8 +32,8 @@ TODO: Add long description of the pod here.
   s.osx.deployment_target = '10.13'
 
   s.source_files = 'Sources/**/*.{h,hh,mm,m,c,cpp,swift}'
-  s.dependency 'ZippyJSONCFamily'
-  s.dependency 'JJLISO8601DateFormatter'
+  s.dependency 'ZippyJSONCFamily', '~> 0.0.1'
+  s.dependency 'JJLISO8601DateFormatter', '~> 0.1.2'
   s.swift_version = '5.0'
 
   s.test_spec 'Tests' do |test_spec|
