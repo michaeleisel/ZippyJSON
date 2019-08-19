@@ -8,7 +8,7 @@
 
 Pod::Spec.new do |s|
   s.name             = 'ZippyJSON'
-  s.version          = '0.1.0'
+  s.version          = '0.0.1'
   s.summary          = 'A short description of ZippyJSON.'
 
 # This description is used to generate tags and improve search results.
@@ -37,6 +37,8 @@ TODO: Add long description of the pod here.
   s.swift_version = '5.0'
 
   s.test_spec 'Tests' do |test_spec|
-    test_spec.source_files = 'Tests/*.{swift,h,m}'
+    test_spec.requires_app_host = true
+    test_spec.source_files = 'Tests/**/*.{swift,h,m}'
+    test_spec.resources = 'Tests/**/*.json'
   end
 end

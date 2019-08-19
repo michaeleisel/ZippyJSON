@@ -1,3 +1,9 @@
+Tests were used from the swift project which is licensed under the Apache 2.0 license, see https://github.com/apple/swift/blob/7b654b372f/LICENSE.txt
+
+Tests were used from IkigaJSON which is licensed under the MIT license, see https://github.com/Ikiga/IkigaJSON/blob/master/LICENSE
+
+For everything else:
+
 Copyright (c) 2019 Michael Eisel <michael.eisel@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

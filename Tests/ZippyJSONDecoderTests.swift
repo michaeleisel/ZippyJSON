@@ -315,9 +315,9 @@ class ZippyJSONTests: XCTestCase {
         _testRoundTrip(of: Test.self, json: #"{"a": null}"#)
     }
 
-    func run<T: Codable & Equatable>(_ filename: String, _ type: T.Type, keyDecoding: ZippyJSONDecoder.KeyDecodingStrategy = .useDefaultKeys) {
+    func run<T: Codable & Equatable>(_ filename: String, _ type: T.Type, keyDecoding: ZippyJSONDecoder.KeyDecodingStrategy = .useDefaultKeys, dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy = .deferredToDate) {
         let json = dataFromFile(filename + ".json")
-        _testRoundTrip(of: type, json: String(data: json, encoding: .utf8)!)
+        _testRoundTrip(of: type, json: String(data: json, encoding: .utf8)!, dateDecodingStrategy: dateDecodingStrategy)
     }
 
     func testArrayTypes() {
@@ -358,7 +358,7 @@ class ZippyJSONTests: XCTestCase {
         run("random", random.self)
         run("mesh", mesh.self)
         run("canada", canada.self)
-        run("github_events", [github_events].self)
+        run("github_events", ghEvents.self, dateDecodingStrategy: .iso8601)
         run("twitter", Twitter.self, keyDecoding: .convertFromSnakeCase)
         run("twitterescaped", Twitter.self)
     }
