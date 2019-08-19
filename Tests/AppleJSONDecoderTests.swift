@@ -99,7 +99,7 @@ class TestJSONEncoder : XCTestCase {
     _testRoundTrip(of: TopLevelWrapper(EnhancedBool.fileNotFound), expectedJSON: "{\"value\":null}".data(using: .utf8)!)
   }
   
-  func testEncodingMultipleNestedContainersWithTheSameTopLevelKey() {
+  /*func testEncodingMultipleNestedContainersWithTheSameTopLevelKey() {
     struct Model : Codable, Equatable {
       let first: String
       let second: String
@@ -147,13 +147,8 @@ class TestJSONEncoder : XCTestCase {
     }
     
     let model = Model.testValue
-    if #available(OSX 10.13, iOS 11.0, watchOS 4.0, tvOS 11.0, *) {
-      let expectedJSON = "{\"top\":{\"first\":\"Johnny Appleseed\",\"second\":\"appleseed@apple.com\"}}".data(using: .utf8)!
-      _testRoundTrip(of: model, expectedJSON: expectedJSON, outputFormatting: [.sortedKeys])
-    } else {
-      _testRoundTrip(of: model)
-    }
-  }
+    _testRoundTrip(of: model)
+  }*/
   
   /*func testEncodingConflictedTypeNestedContainersWithTheSameTopLevelKey() {
     struct Model : Encodable, Equatable {
@@ -1139,6 +1134,7 @@ class TestJSONEncoder : XCTestCase {
                                  nonConformingFloatEncodingStrategy: JSONEncoder.NonConformingFloatEncodingStrategy = .throw,
                                  nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy = .throw) where T : Codable, T : Equatable {
     var payload: Data! = nil
+    let p: String
     do {
       let encoder = JSONEncoder()
       encoder.outputFormatting = outputFormatting
@@ -1147,6 +1143,7 @@ class TestJSONEncoder : XCTestCase {
       encoder.nonConformingFloatEncodingStrategy = nonConformingFloatEncodingStrategy
       encoder.keyEncodingStrategy = keyEncodingStrategy
       payload = try encoder.encode(value)
+      p = String(data: payload, encoding: .utf8)!
     } catch {
       expectUnreachable("Failed to encode \(T.self) to JSON: \(error)")
     }
