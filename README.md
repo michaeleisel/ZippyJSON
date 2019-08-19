@@ -6,7 +6,7 @@
 
 ## Benchmarks
 
-<img src="misc/chart.png" width="75%">
+<img src="misc/chart.svg" width="75%">
 
 ## Usage
 
