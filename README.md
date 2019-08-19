@@ -1,12 +1,12 @@
 # ZippyJSON
-## A much faster, drop-in replacement for JSONDecoder
+## A very fast, drop-in replacement for JSONDecoder
 [![Platform](https://img.shields.io/cocoapods/p/ZippyJSON.svg?style=flat)](https://cocoapods.org/pods/ZippyJSON)
 [![Carthage compatible](https://img.shields.io/badge/Carthage-compatible-4BC51D.svg?style=flat)](https://github.com/Carthage/Carthage)
 [![Cocoapods compatible](https://img.shields.io/badge/Cocoapods-compatible-4BC51D.svg?style=flat)](https://cocoapods.com)
 
 ## Benchmarks
 
-<img src="misc/chart.png" width="100%">
+<img src="misc/chart.png" width="75%">
 
 ## Usage
 
@@ -40,6 +40,11 @@ pod 'ZippyJSON'
 ```
 
 ### Carthage
+
+To install it, add the following to your Cartfile:
+```
+github "michaeleisel/ZippyJSON"
+```
 
 ## Author
 
