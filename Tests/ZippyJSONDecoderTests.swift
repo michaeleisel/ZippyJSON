@@ -354,7 +354,7 @@ class ZippyJSONTests: XCTestCase {
     }
 
     func testRealJsons() {
-        run("apache_builds", apache_builds.self)
+        run("apache_builds", ApacheBuilds.self)
         run("random", random.self)
         run("mesh", mesh.self)
         run("canada", canada.self)
