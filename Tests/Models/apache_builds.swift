@@ -1,43 +1,96 @@
-struct apache_builds: Codable, Equatable {
-    let `assignedLabels`: [assignedLabels]
-    let `mode`: String
-    let `nodeDescription`: String
-    let `nodeName`: String
-    let `numExecutors`: Int
-    let `description`: String
-    let `jobs`: [jobs]
-    let `overallLoad`: overallLoad
-    let `primaryView`: primaryView
-    let `quietingDown`: Bool
-    let `slaveAgentPort`: Int
-    let `unlabeledLoad`: unlabeledLoad
-    let `useCrumbs`: Bool
-    let `useSecurity`: Bool
-    let `views`: [views]
+// This file was generated from JSON Schema using quicktype, do not modify it directly.
+// To parse the JSON, add this file to your project and do:
+//
+//   let welcome = try? newJSONDecoder().decode(Welcome.self, from: jsonData)
+
+//
+// Hashable or Equatable:
+// The compiler will not be able to synthesize the implementation of Hashable or Equatable
+// for types that require the use of JSONAny, nor will the implementation of Hashable be
+// synthesized for types that have collections (such as arrays or dictionaries).
+
+import Foundation
+
+// MARK: - Welcome
+public struct ApacheBuilds: Codable, Equatable {
+    let assignedLabels: [OverallLoad]
+    let mode: String
+    let nodeDescription: String
+    let nodeName: String
+    let numExecutors: Int
+    let welcomeDescription: String
+    let jobs: [Job]
+    let overallLoad: OverallLoad
+    let primaryView: View
+    let quietingDown: Bool
+    let slaveAgentPort: Int
+    let unlabeledLoad: OverallLoad
+    let useCrumbs: Bool
+    let useSecurity: Bool
+    let views: [View]
+
+    enum CodingKeys: String, CodingKey {
+        case assignedLabels = "assignedLabels"
+        case mode = "mode"
+        case nodeDescription = "nodeDescription"
+        case nodeName = "nodeName"
+        case numExecutors = "numExecutors"
+        case welcomeDescription = "description"
+        case jobs = "jobs"
+        case overallLoad = "overallLoad"
+        case primaryView = "primaryView"
+        case quietingDown = "quietingDown"
+        case slaveAgentPort = "slaveAgentPort"
+        case unlabeledLoad = "unlabeledLoad"
+        case useCrumbs = "useCrumbs"
+        case useSecurity = "useSecurity"
+        case views = "views"
+    }
 }
 
-struct views: Codable, Equatable {
-    let `name`: String
-    let `url`: String
+//
+// Hashable or Equatable:
+// The compiler will not be able to synthesize the implementation of Hashable or Equatable
+// for types that require the use of JSONAny, nor will the implementation of Hashable be
+// synthesized for types that have collections (such as arrays or dictionaries).
+
+// MARK: - OverallLoad
+struct OverallLoad: Codable, Equatable {
 }
 
-struct unlabeledLoad: Codable, Equatable {
+//
+// Hashable or Equatable:
+// The compiler will not be able to synthesize the implementation of Hashable or Equatable
+// for types that require the use of JSONAny, nor will the implementation of Hashable be
+// synthesized for types that have collections (such as arrays or dictionaries).
+
+// MARK: - Job
+struct Job: Codable, Equatable {
+    let name: String
+    let url: String
+    let color: String
+
+    enum CodingKeys: String, CodingKey {
+        case name = "name"
+        case url = "url"
+        case color = "color"
+    }
 }
 
-struct primaryView: Codable, Equatable {
-    let `name`: String
-    let `url`: String
-}
+//
+// Hashable or Equatable:
+// The compiler will not be able to synthesize the implementation of Hashable or Equatable
+// for types that require the use of JSONAny, nor will the implementation of Hashable be
+// synthesized for types that have collections (such as arrays or dictionaries).
 
-struct overallLoad: Codable, Equatable {
-}
+// MARK: - View
+struct View: Codable, Equatable {
+    let name: String
+    let url: String
 
-struct jobs: Codable, Equatable {
-    let `name`: String
-    let `url`: String
-    let `color`: String
-}
-
-struct assignedLabels: Codable, Equatable {
+    enum CodingKeys: String, CodingKey {
+        case name = "name"
+        case url = "url"
+    }
 }
 
