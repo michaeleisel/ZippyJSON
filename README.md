@@ -13,8 +13,8 @@ Because it is drop-in, simply add the library to your project and replace `JSOND
 
 ## Why is it so much faster?
 
-- Apple's version first converts the JSON into an `NSDictionary` using `NSJSONSerialization` and then afterwards makes things Swifty.
-- ZippyJSON is built largely in C++ (but still with a Swift interface wrapped around it). Apple uses entirely [Swift](https://github.com/apple/swift/blob/master/stdlib/public/Darwin/Foundation/JSONEncoder.swift) (aside from the use of `NSJSONSerialization`).
+- Apple's version first converts the JSON into an `NSDictionary` using `NSJSONSerialization` and then afterwards makes things Swifty. The creation of that intermediate dictionary is expensive.
+- ZippyJSON is built largely in C++ (but still with a Swift interface wrapped around it). Apple uses entirely [Swift](https://github.com/apple/swift/blob/master/stdlib/public/Darwin/Foundation/JSONEncoder.swift) (aside from the use of `NSJSONSerialization`) which is generally slower.
 - There are many specific optimizations in there as well. For example, date parsing for ISO-8601 dates is 10x faster due to use JJLISO8601DateFormatter insteads of Apple's date formatter.
 
 So, it's largely due Apple trying to be elegant and operate at a higher level.
