@@ -7,6 +7,8 @@
 
 <img src="misc/chart.svg" width="75%">
 
+These benchmarks were done on an iPhone 8. The results are very similar on MacOS.
+
 ## Usage
 
 Because it is drop-in, simply add the library to your project and replace `JSONDecoder` with `ZippyJSONDecoder` anywhere you want to use it. The library is feature-complete, so it will support any use cases you have.
