@@ -1,2 +1,2 @@
 github "michaeleisel/ZippyJSONCFamily" ~> 0.0.1
-github "michaeleisel/JJLISO8601DateFormattter" ~> 0.1.2
+github "michaeleisel/JJLISO8601DateFormatter" ~> 0.1.2
