@@ -106,7 +106,7 @@ fileprivate struct AtomicBool {
     
     func store(_ b: Bool) { b }
     
-    func load() -> Bool { _value }
+    func load() -> Bool { return _value }
     
     @discardableResult
     func orAndFetch(_ b: Bool) -> Bool {

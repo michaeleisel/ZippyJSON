@@ -796,7 +796,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     }
 
     func contains(_ key: K) -> Bool {
-        key.stringValue.withCString { pointer in
+        return key.stringValue.withCString { pointer in
             return JNTDocumentContains(value, pointer)
         }
     }
@@ -904,11 +904,11 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     }
 
     func superDecoder() throws -> Decoder {
-        try _superDecoder(forKey: JSONKey.super)
+        return try _superDecoder(forKey: JSONKey.super)
     }
 
     func superDecoder(forKey key: Key) throws -> Decoder {
-        try _superDecoder(forKey: key)
+        return try _superDecoder(forKey: key)
     }
 }
 

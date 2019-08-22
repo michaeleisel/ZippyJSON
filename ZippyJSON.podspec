@@ -22,7 +22,7 @@ ZippyJSON is a very fast library for converting JSON into Swift objects. It is f
 
   # todo: put this back in once the cocoapod bugs around it get resolved
   s.test_spec 'Tests' do |test_spec|
-    test_spec.requires_app_host = true
+    # test_spec.requires_app_host = true
     test_spec.source_files = 'Tests/**/*.{swift,h,m}'
     test_spec.resources = 'Tests/**/*.json'
   end

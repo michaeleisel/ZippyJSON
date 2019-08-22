@@ -20,7 +20,7 @@ struct TestCodingKey: CodingKey {
 }
 
 extension DecodingError: Equatable {
-    public static func == (lhs: Self, rhs: Self) -> Bool {
+    public static func == (lhs: DecodingError, rhs: DecodingError) -> Bool {
         switch lhs {
         case .typeMismatch(let lType, let lContext):
             if case let DecodingError.typeMismatch(rType, rContext) = rhs {
@@ -46,7 +46,7 @@ extension DecodingError: Equatable {
 }
 
 func keysEqual(_ lhs: CodingKey, _ rhs: CodingKey) -> Bool {
-    lhs.stringValue == rhs.stringValue || (lhs.intValue != nil && lhs.intValue == rhs.intValue)
+    return lhs.stringValue == rhs.stringValue || (lhs.intValue != nil && lhs.intValue == rhs.intValue)
 }
 
 fileprivate struct JSONKey : CodingKey {
@@ -77,7 +77,7 @@ fileprivate struct JSONKey : CodingKey {
 }
 
 extension DecodingError.Context: Equatable {
-    public static func == (lhs: Self, rhs: Self) -> Bool {
+    public static func == (lhs: DecodingError.Context, rhs: DecodingError.Context) -> Bool {
         let pathsEqual = lhs.codingPath.count == rhs.codingPath.count && zip(lhs.codingPath, rhs.codingPath).allSatisfy { (a, b) in
             keysEqual(a, b)
         }
