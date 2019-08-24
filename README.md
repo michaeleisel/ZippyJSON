@@ -7,7 +7,7 @@
 
 <img src="misc/chart.svg" width="75%">
 
-These benchmarks were done on an iPhone 8. The results are very similar on MacOS.
+These benchmarks were done on a Macbook Pro. The results are very similar on the iPhone (ZippyJSON is 3x+ faster for all 3 files on both platforms).
 
 ## Usage
 
