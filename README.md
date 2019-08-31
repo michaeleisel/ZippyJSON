@@ -23,7 +23,7 @@ So, it's largely due to Apple trying to be elegant and operate at a higher level
 
 ## When should you use this library?
 
-    At first, default to using `JSONDecoder`. It's very battle-tested, and for plenty of use cases is just fine. Then, once you start looking for new things to optimize, take a look at how long your JSON parsing is taking. After all, JSON parsing can be a bottleneck for getting data to the user. As a rule of thumb, divide its current time taken by 4 to approximate the time taken with ZippyJSON. If that difference is significant to you (and even milliseconds can impact a user experience!), then consider using ZippyJSON.
+At first, default to using `JSONDecoder`. It's very battle-tested, and for plenty of use cases is just fine. Then, once you start looking for new things to optimize, take a look at how long your JSON parsing is taking. After all, JSON parsing can be a bottleneck for getting data to the user. As a rule of thumb, divide its current time taken by 4 to approximate the time taken with ZippyJSON. If that difference is significant to you (and even milliseconds can impact a user experience!), then consider using ZippyJSON.
 
 ## Stability
 
