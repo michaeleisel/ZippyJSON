@@ -11,7 +11,7 @@ These benchmarks were done on a Macbook Pro. The results are very similar on the
 
 ## Usage
 
-Just replace `JSONDecoder` with `ZippyJSONDecoder` wherever you want to use it (and add the import). So instead of `let decoder = JSONDecoder()`, do `let decoder = ZippyJSONDecoder()`, and everything will just work. This is because ZippyJSONDecoder has the exact same API as JSONDecoder (i.e. it's drop-in). Also, don't forget to add `import ZippyJSON` in files where you use it.
+Just replace `JSONDecoder` with `ZippyJSONDecoder` wherever you want to use it. So instead of `let decoder = JSONDecoder()`, do `let decoder = ZippyJSONDecoder()`, and everything will just work. This is because ZippyJSONDecoder has the exact same API as JSONDecoder (i.e. it's drop-in). Also, don't forget to add `import ZippyJSON` in files where you use it.
 
 ## Why is it so much faster?
 
