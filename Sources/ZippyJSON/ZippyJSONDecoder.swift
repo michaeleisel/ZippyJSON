@@ -4,7 +4,7 @@ import Foundation
 import ZippyJSONCFamily
 import JJLISO8601DateFormatter
 
-typealias Value = UnsafeRawPointer
+typealias Value = IteratorPointer
 
 @available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *)
 fileprivate var _iso8601Formatter: JJLISO8601DateFormatter = {
@@ -23,18 +23,6 @@ internal protocol DictionaryWithoutKeyConversion {
 
 extension Dictionary : DictionaryWithoutKeyConversion where Key == String, Value: Decodable {
     static var elementType: Decodable.Type { return Value.self }
-}
-
-private final class DocumentHolder {
-    let value: Value
-
-    init(value: Value) {
-        self.value = value
-    }
-
-    deinit {
-        JNTReleaseDocument(value)
-    }
 }
 
 public final class ZippyJSONDecoder {
@@ -67,7 +55,7 @@ public final class ZippyJSONDecoder {
             var retryReason: UnsafePointer<CChar>? = nil
             let value: Value? = JNTDocumentFromJSON(bytes.baseAddress!, data.count, convertCase, &retryReason, zjd_fullPrecisionFloatParsing)
             defer {
-                JNTReleaseDocument(value)
+                JNTReleaseDocument()
             }
             let error = JNTError()!
             if let value = value {
