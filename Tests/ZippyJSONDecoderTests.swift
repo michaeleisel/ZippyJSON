@@ -194,6 +194,17 @@ class ZippyJSONTests: XCTestCase {
         _testFailure(of: TopLevelWrapper<Test>.self, json: #"{"value": {"b": true}}"#, expectedError: DecodingError.keyNotFound(JSONKey(stringValue: "a")!, DecodingError.Context(codingPath: [JSONKey(stringValue: "value")!], debugDescription: "No value associated with a.")))
     }
 
+    func testNestedDecoding() {
+        struct Test: Codable, Equatable {
+            init(from decoder: Decoder) throws {
+                if (try! ZippyJSONDecoder().decode([Int].self, from: "[1]".data(using: .utf8)!) != [1]) {
+                    abort()
+                }
+            }
+        }
+        _testRoundTrip(of: Test.self, json: "{}")
+    }
+
     func testArrayStuff() {
         struct Test: Codable, Equatable {
             let a: Bool
