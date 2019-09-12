@@ -26,8 +26,6 @@ extension Dictionary : DictionaryWithoutKeyConversion where Key == String, Value
 }
 
 public final class ZippyJSONDecoder {
-    // todo: nested json parsing
-
     public var zjd_fullPrecisionFloatParsing = true
     
     private static var _zjd_suppressWarnings: Bool = false
@@ -57,13 +55,16 @@ public final class ZippyJSONDecoder {
         }
     }
 
-    public func decode<T : Decodable>(_ type: T.Type, from data: /*todo: inout*/ Data) throws -> T {
+    public func decode<T : Decodable>(_ type: T.Type, from data: Data) throws -> T {
         if case .custom(_) = keyDecodingStrategy {
             return try decodeWithAppleDecoder(type, from: data, reason: "Custom key decoding is not supported, because it is uncommon and makes efficient parsing difficult")
         }
         return try data.withUnsafeBytes { (bytes) -> T in
             var retryReason: UnsafePointer<CChar>? = nil
             let context = createContext()
+            defer {
+                JNTReleaseContext(context)
+            }
             let value: Value? = JNTDocumentFromJSON(context, bytes.baseAddress!, data.count, convertCase, &retryReason, zjd_fullPrecisionFloatParsing)
             if let value = value {
                 let decoder = __JSONDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy)

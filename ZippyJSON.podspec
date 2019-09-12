@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'ZippyJSON'
-  s.version          = '0.0.5'
+  s.version          = '1.0.0'
   s.summary          = 'A ~4x faster, drop-in replacement for JSONDecoder'
 
   s.description      = <<-DESC
@@ -20,7 +20,6 @@ ZippyJSON is a very fast library for converting JSON into Swift objects. It is f
   s.dependency 'JJLISO8601DateFormatter', '~> 0.1.2'
   s.swift_version = '5.0'
 
-  # todo: put this back in once the cocoapod bugs around it get resolved
   s.test_spec 'Tests' do |test_spec|
     # test_spec.requires_app_host = true
     test_spec.source_files = 'Tests/**/*.{swift,h,m}'
