@@ -4,7 +4,7 @@ import Foundation
 import ZippyJSONCFamily
 import JJLISO8601DateFormatter
 
-typealias Value = UnsafeRawPointer
+typealias Value = UnsafeMutablePointer<DecoderDummy>
 
 @available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *)
 fileprivate var _iso8601Formatter: JJLISO8601DateFormatter = {
@@ -25,19 +25,8 @@ extension Dictionary : DictionaryWithoutKeyConversion where Key == String, Value
     static var elementType: Decodable.Type { return Value.self }
 }
 
-private final class DocumentHolder {
-    let value: Value
-
-    init(value: Value) {
-        self.value = value
-    }
-
-    deinit {
-        JNTReleaseDocument(value)
-    }
-}
-
 public final class ZippyJSONDecoder {
+    // todo: nested json parsing
 
     public var zjd_fullPrecisionFloatParsing = true
     
@@ -53,36 +42,42 @@ public final class ZippyJSONDecoder {
         }
     }
 
+    private func createContext() -> ContextPointer {
+        switch nonConformingFloatDecodingStrategy {
+        case .convertFromString(let pI, let nI, let nan):
+            return pI.withCString { pIP in
+                nI.withCString { nIP in
+                    nan.withCString { nanP in
+                        return JNTCreateContext(nIP, pIP, nanP)
+                    }
+                }
+            }
+        case .throw:
+            return JNTCreateContext("", "", "")
+        }
+    }
+
     public func decode<T : Decodable>(_ type: T.Type, from data: /*todo: inout*/ Data) throws -> T {
         if case .custom(_) = keyDecodingStrategy {
             return try decodeWithAppleDecoder(type, from: data, reason: "Custom key decoding is not supported, because it is uncommon and makes efficient parsing difficult")
         }
-        guard JNTAcquireThreadLock() else {
-            return try decodeWithAppleDecoder(type, from: data, reason: "A custom decoder was passed in that runs its own JSON decoding. This is not supported due to additional complexity")
-        }
-        defer {
-            JNTReleaseThreadLock()
-        }
         return try data.withUnsafeBytes { (bytes) -> T in
             var retryReason: UnsafePointer<CChar>? = nil
-            let value: Value? = JNTDocumentFromJSON(bytes.baseAddress!, data.count, convertCase, &retryReason, zjd_fullPrecisionFloatParsing)
-            defer {
-                JNTReleaseDocument(value)
-            }
-            let error = JNTError()!
+            let context = createContext()
+            let value: Value? = JNTDocumentFromJSON(context, bytes.baseAddress!, data.count, convertCase, &retryReason, zjd_fullPrecisionFloatParsing)
             if let value = value {
                 let decoder = __JSONDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy)
-                if error.pointee.type != .none {
-                    throw swiftErrorFromError(error.pointee)
+                if JNTErrorDidOccur(context) {
+                    throw swiftErrorFromError(context)
                 }
                 let result = try decoder.unbox(value, as: type)
                 
-                if error.pointee.type != .none {
-                    throw swiftErrorFromError(error.pointee)
+                if JNTErrorDidOccur(context) {
+                    throw swiftErrorFromError(context)
                 }
                 return result
             } else {
-                if error.pointee.type == .none {
+                if !JNTErrorDidOccur(context) {
                     // The JSON is OK but it should be redone by apple
                     var retryReasonString: String? = nil
                     if let retryReason = retryReason {
@@ -90,7 +85,7 @@ public final class ZippyJSONDecoder {
                     }
                     return try decodeWithAppleDecoder(type, from: data, reason: retryReasonString)
                 } else {
-                    throw swiftErrorFromError(error.pointee)
+                    throw swiftErrorFromError(context)
                 }
             }
         }
@@ -219,34 +214,38 @@ public final class ZippyJSONDecoder {
     }
 }
 
-fileprivate func swiftErrorFromError(_ error: JNTDecodingError) -> Error {
-    let debugDescription = String(utf8String: error.description)!
-    var path = error.value.map { computeCodingPath(value: $0) } ?? []
-    let keyString = error.key.map { String(utf8String: $0) ?? "" } ?? ""
-    let key = JSONKey(stringValue: keyString)!
-    // If there was an actual key given, remove the last part of the path and let the DecodingError take care of adding the passed in key to the end
-    if key.stringValue != "" {
-        let _ = path.popLast()
+fileprivate func swiftErrorFromError(_ context: ContextPointer) -> Error {
+    var error: Error? = nil
+    JNTProcessError(context) { (description, type, value, key) in
+        let debugDescription = String(utf8String: description!)!
+        var path = value.map { computeCodingPath(value: $0) } ?? []
+        let keyString = key.map { String(utf8String: $0) ?? "" } ?? ""
+        let key = JSONKey(stringValue: keyString)!
+        // If there was an actual key given, remove the last part of the path and let the DecodingError take care of adding the passed in key to the end
+        if key.stringValue != "" {
+            let _ = path.popLast()
+        }
+        let instanceType = Any.self
+        switch type {
+        case .wrongType:
+            error = DecodingError.typeMismatch(instanceType, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
+        case .numberDoesNotFit:
+            error = DecodingError.dataCorrupted(DecodingError.Context(codingPath: path, debugDescription:debugDescription))
+        case .keyDoesNotExist:
+            error = DecodingError.keyNotFound(key, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
+        case .valueDoesNotExist:
+            error = DecodingError.valueNotFound(instanceType, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
+        case .jsonParsingFailed:
+            error = DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: debugDescription))
+        case .wentPastEndOfArray:
+            error = DecodingError.valueNotFound(Any.self, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
+        case .none:
+            fallthrough
+        @unknown default:
+            break
+        }
     }
-    let type = Any.self
-    switch error.type {
-    case .wrongType:
-        return DecodingError.typeMismatch(type, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
-    case .numberDoesNotFit:
-        return DecodingError.dataCorrupted(DecodingError.Context(codingPath: path, debugDescription:debugDescription))
-    case .keyDoesNotExist:
-        return DecodingError.keyNotFound(key, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
-    case .valueDoesNotExist:
-        return DecodingError.valueNotFound(type, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
-    case .jsonParsingFailed:
-        return DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: debugDescription))
-    case .wentPastEndOfArray:
-        return DecodingError.valueNotFound(Any.self, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
-    case .none:
-        return NSError(domain: "", code: 0, userInfo: [:])
-    @unknown default:
-        return NSError(domain: "", code: 0, userInfo: [:])
-    }
+    return error ?? NSError(domain: "", code: 0, userInfo: [:])
 }
 
 final private class JSONDecodingStorage {
@@ -294,6 +293,7 @@ final private class __JSONDecoder: Decoder {
     let nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy
     var swiftError: Error?
     var stringsForFloats: Bool
+    let emptyDictionaryDecoder: Value
 
     fileprivate var containers: JSONDecodingStorage
 
@@ -309,19 +309,13 @@ final private class __JSONDecoder: Decoder {
         self.dataDecodingStrategy = dataDecodingStrategy
         self.dateDecodingStrategy = dateDecodingStrategy
         self.nonConformingFloatDecodingStrategy = nonConformingFloatDecodingStrategy
-        switch nonConformingFloatDecodingStrategy {
-        case .convertFromString(let pI, let nI, let nan):
-            pI.withCString { pIP in
-                nI.withCString { nIP in
-                    nan.withCString { nanP in
-                        JNTUpdateFloatingPointStrings(pI, nI, nan)
-                    }
-                }
-            }
+        switch (nonConformingFloatDecodingStrategy) {
+        case .convertFromString(positiveInfinity: _, negativeInfinity: _, nan: _):
             stringsForFloats = true
         case .throw:
             stringsForFloats = false
         }
+        self.emptyDictionaryDecoder = JNTEmptyDictionaryDecoder(value)
     }
 
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
@@ -757,7 +751,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
 private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
     var codingPath: [CodingKey] {
-        guard value != JNTEmptyDictionaryIterator() else {
+        guard value != decoder.emptyDictionaryDecoder else {
             return decoder.codingPath
         }
         return computeCodingPath(value: value)
@@ -781,7 +775,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         if let innerValue = JNTDocumentEnterStructureAndReturnCopy(value) {
             self.value = innerValue
         } else {
-            self.value = JNTEmptyDictionaryIterator()
+            self.value = decoder.emptyDictionaryDecoder
         }
         self.decoder = decoder
         // todo: fix bug where the keys get converted and then used to create a dictionary later
