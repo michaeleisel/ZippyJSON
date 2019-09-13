@@ -205,6 +205,10 @@ class ZippyJSONTests: XCTestCase {
         _testRoundTrip(of: Test.self, json: "{}")
     }
 
+    func testEmptyString() {
+        _testFailure(of: [Int].self, json: "", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "The given data was not valid JSON. Error: Empty")))
+    }
+
     func testArrayStuff() {
         struct Test: Codable, Equatable {
             let a: Bool
