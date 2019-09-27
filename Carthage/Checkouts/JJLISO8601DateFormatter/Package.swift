@@ -1,28 +1,28 @@
-// swift-tools-version:5.1
+// swift-tools-version:5.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
 
 let package = Package(
-    name: "ZippyJSON",
+    name: "JJLISO8601DateFormatter",
     products: [
         // Products define the executables and libraries produced by a package, and make them visible to other packages.
         .library(
-            name: "ZippyJSON",
-            targets: ["ZippyJSON"]),
+            name: "JJLISO8601DateFormatter",
+            targets: ["JJLISO8601DateFormatter"]),
     ],
     dependencies: [
-        .package(path: "../ZippyJSONCFamily"),
-        .package(path: "../JJLISO8601DateFormatter")
+        // Dependencies declare other packages that this package depends on.
+        // .package(url: /* package url */, from: "1.0.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
         // Targets can depend on other targets in this package, and on products in packages which this package depends on.
         .target(
-            name: "ZippyJSON",
-            dependencies: ["ZippyJSONCFamily", "JJLISO8601DateFormatter"]),
+            name: "JJLISO8601DateFormatter",
+            dependencies: []),
         .testTarget(
-            name: "ZippyJSONTests",
-            dependencies: ["ZippyJSON"]),
+            name: "JJLISO8601DateFormatterTests",
+            dependencies: ["JJLISO8601DateFormatter"]),
     ]
 )
