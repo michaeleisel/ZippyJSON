@@ -1,0 +1,6 @@
+framework module JJLISO8601DateFormatter {
+  umbrella header "JJLISO8601DateFormatter-macOS-umbrella.h"
+
+  export *
+  module * { export * }
+}

@@ -1,0 +1,31 @@
+PODS:
+  - JJLISO8601DateFormatter (0.1.2)
+  - ZippyJSON (1.0.0):
+    - JJLISO8601DateFormatter (~> 0.1.2)
+    - ZippyJSONCFamily (~> 1.0.0)
+  - ZippyJSON/Tests (1.0.0):
+    - JJLISO8601DateFormatter (~> 0.1.2)
+    - ZippyJSONCFamily (~> 1.0.0)
+  - ZippyJSONCFamily (1.0.0)
+
+DEPENDENCIES:
+  - ZippyJSON (from `../../ZippyJSON.podspec`)
+  - ZippyJSON/Tests (from `../../ZippyJSON.podspec`)
+
+SPEC REPOS:
+  https://github.com/CocoaPods/Specs.git:
+    - JJLISO8601DateFormatter
+    - ZippyJSONCFamily
+
+EXTERNAL SOURCES:
+  ZippyJSON:
+    :path: "../../ZippyJSON.podspec"
+
+SPEC CHECKSUMS:
+  JJLISO8601DateFormatter: 06a216365f6c8b0ec33a6ce3750d496f048efb32
+  ZippyJSON: 1d659fcea7597e998e4338b6c291458edf1302d6
+  ZippyJSONCFamily: 59a6b8b460424e3fc7438c9c5f08c46e8da8d343
+
+PODFILE CHECKSUM: ea641bf351092ed31bee71bbb8450f79afb147f9
+
+COCOAPODS: 1.8.1

@@ -1,0 +1,6 @@
+framework module ZippyJSONCFamily {
+  umbrella header "ZippyJSONCFamily-iOS-umbrella.h"
+
+  export *
+  module * { export * }
+}
