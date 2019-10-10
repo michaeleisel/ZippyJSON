@@ -36,7 +36,7 @@ There are still many places in the code that are ripe for optimization. Feel fre
 
 ### Cocoapods
 
-ZippyJSON is available through [CocoaPods](https://cocoapods.org). To install
+ZippyJSON is available through [CocoaPods](https://cocoapods.org) (SPM support is in the works). To install
 it, simply add the following line to your Podfile:
 
 ```ruby
