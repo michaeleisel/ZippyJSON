@@ -1,6 +1,5 @@
 # ZippyJSON
 ## A much faster version of JSONDecoder
-[![Carthage compatible](https://img.shields.io/badge/Carthage-compatible-4BC51D.svg?style=flat)](https://github.com/Carthage/Carthage)
 [![Cocoapods compatible](https://img.shields.io/badge/Cocoapods-compatible-4BC51D.svg?style=flat)](https://cocoapods.com)
 
 ## Benchmarks
@@ -42,13 +41,6 @@ it, simply add the following line to your Podfile:
 
 ```ruby
 pod 'ZippyJSON'
-```
-
-### Carthage
-
-To install it, add the following to your Cartfile:
-```
-github "michaeleisel/ZippyJSON"
 ```
 
 ## Author
