@@ -71,12 +71,7 @@ public final class ZippyJSONDecoder {
                 if JNTErrorDidOccur(context) {
                     throw swiftErrorFromError(context)
                 }
-                let result = try decoder.unbox(value, as: type)
-                
-                if JNTErrorDidOccur(context) {
-                    throw swiftErrorFromError(context)
-                }
-                return result
+                return try decoder.unbox(value, as: type)
             } else {
                 if !JNTErrorDidOccur(context) {
                     // The JSON is OK but it should be redone by apple
@@ -287,6 +282,7 @@ final private class __JSONDecoder: Decoder {
         return computeCodingPath(value: containers.topContainer)
     }
     let value: Value
+//    let context:
     let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
     let convertToCamel: Bool
     let dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy
@@ -339,16 +335,16 @@ final private class __JSONDecoder: Decoder {
             return try Date(from: self)
 
         case .secondsSince1970:
-            let double = unbox(value, as: Double.self)
+            let double = try unbox(value, as: Double.self)
             return Date(timeIntervalSince1970: double)
 
         case .millisecondsSince1970:
-            let double = unbox(value, as: Double.self)
+            let double = try unbox(value, as: Double.self)
             return Date(timeIntervalSince1970: double / 1000.0)
 
         case .iso8601:
             if #available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *) {
-                let string = self.unbox(value, as: String.self)
+                let string = try self.unbox(value, as: String.self)
                 guard let date = _iso8601Formatter.date(from: string) else {
                     throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Expected date string to be ISO8601-formatted."))
                 }
@@ -359,7 +355,7 @@ final private class __JSONDecoder: Decoder {
             }
 
         case .formatted(let formatter):
-            let string = self.unbox(value, as: String.self)
+            let string = try self.unbox(value, as: String.self)
             guard let date = formatter.date(from: string) else {
                 throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: self.codingPath, debugDescription: "Date string does not match format expected by formatter."))
             }
@@ -376,7 +372,7 @@ final private class __JSONDecoder: Decoder {
     fileprivate func unbox(_ value: Value, as type: Data.Type) throws -> Data {
         switch dataDecodingStrategy {
         case .base64:
-            let string = unbox(value, as: String.self)
+            let string = try unbox(value, as: String.self)
             guard let data = Data(base64Encoded: string) else {
                 throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: self.codingPath, debugDescription: "Encountered Data is not valid Base64."))
             }
@@ -396,10 +392,18 @@ final private class __JSONDecoder: Decoder {
 
     fileprivate func unbox<T>(_ value: Value, as type: DictionaryWithoutKeyConversion.Type) throws -> T {
         var result = [String : Any]()
+        var innerKeyError: Error? = nil
         JNTDocumentForAllKeyValuePairs(value, { key, subValue in
             let keyString = String(cString: key!)
-            result[keyString] = try! self.unbox_(subValue!, as: type.elementType)
+            do {
+                result[keyString] = try self.unbox_(subValue!, as: type.elementType)
+            } catch {
+                innerKeyError = error
+            }
         })
+        if let innerKeyError = innerKeyError {
+            throw innerKeyError
+        }
         if let resultCasted = result as? T {
             return resultCasted
         } else {
@@ -420,7 +424,7 @@ final private class __JSONDecoder: Decoder {
         } else if type == Data.self || type == NSData.self {
             return try unbox(value, as: Data.self)
         } else if type == URL.self || type == NSURL.self {
-            let urlString = unbox(value, as: String.self)
+            let urlString = try unbox(value, as: String.self)
             guard let url = URL(string: urlString) else {
                 throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath,
                                                                         debugDescription: "Invalid URL string."))
@@ -435,78 +439,94 @@ final private class __JSONDecoder: Decoder {
 }
 
 extension __JSONDecoder {
-    // UnboxBegin
-    fileprivate func unbox(_ value: Value, as type: UInt8.Type) -> UInt8 {
-        let result = JNTDocumentDecode__uint8_t(value)
-        return result
-    }
-
-    fileprivate func unbox(_ value: Value, as type: UInt16.Type) -> UInt16 {
-        let result = JNTDocumentDecode__uint16_t(value)
-        return result
-    }
-
-    fileprivate func unbox(_ value: Value, as type: UInt32.Type) -> UInt32 {
-        let result = JNTDocumentDecode__uint32_t(value)
-        return result
-    }
-
-    fileprivate func unbox(_ value: Value, as type: UInt64.Type) -> UInt64 {
-        let result = JNTDocumentDecode__uint64_t(value)
-        return result
-    }
-
-    fileprivate func unbox(_ value: Value, as type: Int8.Type) -> Int8 {
-        let result = JNTDocumentDecode__int8_t(value)
-        return result
-    }
-
-    fileprivate func unbox(_ value: Value, as type: Int16.Type) -> Int16 {
-        let result = JNTDocumentDecode__int16_t(value)
-        return result
-    }
-
-    fileprivate func unbox(_ value: Value, as type: Int32.Type) -> Int32 {
-        let result = JNTDocumentDecode__int32_t(value)
-        return result
-    }
-
-    fileprivate func unbox(_ value: Value, as type: Int64.Type) -> Int64 {
-        let result = JNTDocumentDecode__int64_t(value)
-        return result
-    }
-
-    fileprivate func unbox(_ value: Value, as type: Bool.Type) -> Bool {
-        let result = JNTDocumentDecode__Bool(value)
-        return result
-    }
-
-    fileprivate func unbox(_ value: Value, as type: String.Type) -> String {
-        let result = JNTDocumentDecode__String(value)
-        if result == nil {
-            return ""
+    private func createContext() -> ContextPointer {
+        switch nonConformingFloatDecodingStrategy {
+        case .convertFromString(let pI, let nI, let nan):
+            return pI.withCString { pIP in
+                nI.withCString { nIP in
+                    nan.withCString { nanP in
+                        return JNTCreateContext(nIP, pIP, nanP)
+                    }
+                }
+            }
+        case .throw:
+            return JNTCreateContext("", "", "")
         }
-        return String(utf8String: result!)!
     }
 
-    fileprivate func unbox(_ value: Value, as type: Double.Type) -> Double {
-        let result = JNTDocumentDecode__Double(value)
+    private func throwingJNTErorr<T>(value: Value, _ execute: () -> T) throws -> T {
+        let result = execute()
+        let context = JNTContextFromDecoder(value)!
+        if JNTErrorDidOccur(context) {
+            let error = swiftErrorFromError(context)
+            JNTClearError(context)
+            throw error
+        }
+
         return result
     }
 
-    fileprivate func unbox(_ value: Value, as type: Float.Type) -> Float {
-        let result = JNTDocumentDecode__Float(value)
-        return result
+    // UnboxBegin
+    fileprivate func unbox(_ value: Value, as type: UInt8.Type) throws -> UInt8 {
+        return try self.throwingJNTErorr(value: value) { return JNTDocumentDecode__uint8_t(value) }
     }
 
-    fileprivate func unbox(_ value: Value, as type: Int.Type) -> Int {
-        let result = JNTDocumentDecode__Int(value)
-        return result
+    fileprivate func unbox(_ value: Value, as type: UInt16.Type) throws -> UInt16 {
+        return try self.throwingJNTErorr(value: value) { return JNTDocumentDecode__uint16_t(value) }
     }
 
-    fileprivate func unbox(_ value: Value, as type: UInt.Type) -> UInt {
-        let result = JNTDocumentDecode__UInt(value)
-        return result
+    fileprivate func unbox(_ value: Value, as type: UInt32.Type) throws -> UInt32 {
+        return try self.throwingJNTErorr(value: value) { return JNTDocumentDecode__uint32_t(value) }
+    }
+
+    fileprivate func unbox(_ value: Value, as type: UInt64.Type) throws -> UInt64 {
+        return try self.throwingJNTErorr(value: value) { return JNTDocumentDecode__uint64_t(value) }
+    }
+
+    fileprivate func unbox(_ value: Value, as type: Int8.Type) throws -> Int8 {
+        return try self.throwingJNTErorr(value: value) { return JNTDocumentDecode__int8_t(value) }
+    }
+
+    fileprivate func unbox(_ value: Value, as type: Int16.Type) throws -> Int16 {
+        return try self.throwingJNTErorr(value: value) { return JNTDocumentDecode__int16_t(value) }
+    }
+
+    fileprivate func unbox(_ value: Value, as type: Int32.Type) throws -> Int32 {
+        return try self.throwingJNTErorr(value: value) { return JNTDocumentDecode__int32_t(value) }
+    }
+
+    fileprivate func unbox(_ value: Value, as type: Int64.Type) throws -> Int64 {
+        return try self.throwingJNTErorr(value: value) { return JNTDocumentDecode__int64_t(value) }
+    }
+
+    fileprivate func unbox(_ value: Value, as type: Bool.Type) throws -> Bool {
+        return try self.throwingJNTErorr(value: value) { return JNTDocumentDecode__Bool(value) }
+    }
+
+    fileprivate func unbox(_ value: Value, as type: String.Type) throws -> String {
+        return try self.throwingJNTErorr(value: value) {
+            let result = JNTDocumentDecode__String(value)
+            if result == nil {
+                return ""
+            }
+            return String(utf8String: result!)!
+        }
+    }
+
+    fileprivate func unbox(_ value: Value, as type: Double.Type) throws -> Double {
+        return try self.throwingJNTErorr(value: value) { return JNTDocumentDecode__Double(value) }
+    }
+
+    fileprivate func unbox(_ value: Value, as type: Float.Type) throws -> Float {
+        return try self.throwingJNTErorr(value: value) { return JNTDocumentDecode__Float(value) }
+    }
+
+    fileprivate func unbox(_ value: Value, as type: Int.Type) throws -> Int {
+        return try self.throwingJNTErorr(value: value) { return JNTDocumentDecode__Int(value) }
+    }
+
+    fileprivate func unbox(_ value: Value, as type: UInt.Type) throws -> UInt {
+        return try self.throwingJNTErorr(value: value) { return JNTDocumentDecode__UInt(value) }
     }
 
     // End
@@ -651,98 +671,98 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     // UnkeyedBegin
     public func decode(_ type: UInt8.Type) throws -> UInt8 {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: UInt8.self)
+        let decoded = try decoder.unbox(currentValue, as: UInt8.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: UInt16.Type) throws -> UInt16 {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: UInt16.self)
+        let decoded = try decoder.unbox(currentValue, as: UInt16.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: UInt32.Type) throws -> UInt32 {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: UInt32.self)
+        let decoded = try decoder.unbox(currentValue, as: UInt32.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: UInt64.Type) throws -> UInt64 {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: UInt64.self)
+        let decoded = try decoder.unbox(currentValue, as: UInt64.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Int8.Type) throws -> Int8 {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: Int8.self)
+        let decoded = try decoder.unbox(currentValue, as: Int8.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Int16.Type) throws -> Int16 {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: Int16.self)
+        let decoded = try decoder.unbox(currentValue, as: Int16.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Int32.Type) throws -> Int32 {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: Int32.self)
+        let decoded = try decoder.unbox(currentValue, as: Int32.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Int64.Type) throws -> Int64 {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: Int64.self)
+        let decoded = try decoder.unbox(currentValue, as: Int64.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Bool.Type) throws -> Bool {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: Bool.self)
+        let decoded = try decoder.unbox(currentValue, as: Bool.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: String.Type) throws -> String {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: String.self)
+        let decoded = try decoder.unbox(currentValue, as: String.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Double.Type) throws -> Double {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: Double.self)
+        let decoded = try decoder.unbox(currentValue, as: Double.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Float.Type) throws -> Float {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: Float.self)
+        let decoded = try decoder.unbox(currentValue, as: Float.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Int.Type) throws -> Int {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: Int.self)
+        let decoded = try decoder.unbox(currentValue, as: Int.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: UInt.Type) throws -> UInt {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: UInt.self)
+        let decoded = try decoder.unbox(currentValue, as: UInt.self)
         advanceArray()
         return decoded
     }
@@ -806,74 +826,74 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     }
 
     // KeyedBegin
-    fileprivate func decode(_ type: UInt8.Type, forKey key: K) -> UInt8 {
+    fileprivate func decode(_ type: UInt8.Type, forKey key: K) throws -> UInt8 {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: UInt8.self)
+        return try decoder.unbox(subValue, as: UInt8.self)
     }
 
-    fileprivate func decode(_ type: UInt16.Type, forKey key: K) -> UInt16 {
+    fileprivate func decode(_ type: UInt16.Type, forKey key: K) throws -> UInt16 {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: UInt16.self)
+        return try decoder.unbox(subValue, as: UInt16.self)
     }
 
-    fileprivate func decode(_ type: UInt32.Type, forKey key: K) -> UInt32 {
+    fileprivate func decode(_ type: UInt32.Type, forKey key: K) throws -> UInt32 {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: UInt32.self)
+        return try decoder.unbox(subValue, as: UInt32.self)
     }
 
-    fileprivate func decode(_ type: UInt64.Type, forKey key: K) -> UInt64 {
+    fileprivate func decode(_ type: UInt64.Type, forKey key: K) throws -> UInt64 {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: UInt64.self)
+        return try decoder.unbox(subValue, as: UInt64.self)
     }
 
-    fileprivate func decode(_ type: Int8.Type, forKey key: K) -> Int8 {
+    fileprivate func decode(_ type: Int8.Type, forKey key: K) throws -> Int8 {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: Int8.self)
+        return try decoder.unbox(subValue, as: Int8.self)
     }
 
-    fileprivate func decode(_ type: Int16.Type, forKey key: K) -> Int16 {
+    fileprivate func decode(_ type: Int16.Type, forKey key: K) throws -> Int16 {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: Int16.self)
+        return try decoder.unbox(subValue, as: Int16.self)
     }
 
-    fileprivate func decode(_ type: Int32.Type, forKey key: K) -> Int32 {
+    fileprivate func decode(_ type: Int32.Type, forKey key: K) throws -> Int32 {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: Int32.self)
+        return try decoder.unbox(subValue, as: Int32.self)
     }
 
-    fileprivate func decode(_ type: Int64.Type, forKey key: K) -> Int64 {
+    fileprivate func decode(_ type: Int64.Type, forKey key: K) throws -> Int64 {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: Int64.self)
+        return try decoder.unbox(subValue, as: Int64.self)
     }
 
-    fileprivate func decode(_ type: Bool.Type, forKey key: K) -> Bool {
+    fileprivate func decode(_ type: Bool.Type, forKey key: K) throws -> Bool {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: Bool.self)
+        return try decoder.unbox(subValue, as: Bool.self)
     }
 
-    fileprivate func decode(_ type: String.Type, forKey key: K) -> String {
+    fileprivate func decode(_ type: String.Type, forKey key: K) throws -> String {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: String.self)
+        return try decoder.unbox(subValue, as: String.self)
     }
 
-    fileprivate func decode(_ type: Double.Type, forKey key: K) -> Double {
+    fileprivate func decode(_ type: Double.Type, forKey key: K) throws -> Double {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: Double.self)
+        return try decoder.unbox(subValue, as: Double.self)
     }
 
-    fileprivate func decode(_ type: Float.Type, forKey key: K) -> Float {
+    fileprivate func decode(_ type: Float.Type, forKey key: K) throws -> Float {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: Float.self)
+        return try decoder.unbox(subValue, as: Float.self)
     }
 
-    fileprivate func decode(_ type: Int.Type, forKey key: K) -> Int {
+    fileprivate func decode(_ type: Int.Type, forKey key: K) throws -> Int {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: Int.self)
+        return try decoder.unbox(subValue, as: Int.self)
     }
 
-    fileprivate func decode(_ type: UInt.Type, forKey key: K) -> UInt {
+    fileprivate func decode(_ type: UInt.Type, forKey key: K) throws -> UInt {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return decoder.unbox(subValue, as: UInt.self)
+        return try decoder.unbox(subValue, as: UInt.self)
     }
 
     fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T {
@@ -917,60 +937,60 @@ extension __JSONDecoder : SingleValueDecodingContainer {
     }
 
     // SingleValueBegin
-    public func decode(_ type: UInt8.Type) -> UInt8 {
-        return unbox(containers.topContainer, as: UInt8.self)
+    public func decode(_ type: UInt8.Type) throws -> UInt8 {
+        return try unbox(containers.topContainer, as: UInt8.self)
     }
 
-    public func decode(_ type: UInt16.Type) -> UInt16 {
-        return unbox(containers.topContainer, as: UInt16.self)
+    public func decode(_ type: UInt16.Type) throws -> UInt16 {
+        return try unbox(containers.topContainer, as: UInt16.self)
     }
 
-    public func decode(_ type: UInt32.Type) -> UInt32 {
-        return unbox(containers.topContainer, as: UInt32.self)
+    public func decode(_ type: UInt32.Type) throws -> UInt32 {
+        return try unbox(containers.topContainer, as: UInt32.self)
     }
 
-    public func decode(_ type: UInt64.Type) -> UInt64 {
-        return unbox(containers.topContainer, as: UInt64.self)
+    public func decode(_ type: UInt64.Type) throws -> UInt64 {
+        return try unbox(containers.topContainer, as: UInt64.self)
     }
 
-    public func decode(_ type: Int8.Type) -> Int8 {
-        return unbox(containers.topContainer, as: Int8.self)
+    public func decode(_ type: Int8.Type) throws -> Int8 {
+        return try unbox(containers.topContainer, as: Int8.self)
     }
 
-    public func decode(_ type: Int16.Type) -> Int16 {
-        return unbox(containers.topContainer, as: Int16.self)
+    public func decode(_ type: Int16.Type) throws -> Int16 {
+        return try unbox(containers.topContainer, as: Int16.self)
     }
 
-    public func decode(_ type: Int32.Type) -> Int32 {
-        return unbox(containers.topContainer, as: Int32.self)
+    public func decode(_ type: Int32.Type) throws -> Int32 {
+        return try unbox(containers.topContainer, as: Int32.self)
     }
 
-    public func decode(_ type: Int64.Type) -> Int64 {
-        return unbox(containers.topContainer, as: Int64.self)
+    public func decode(_ type: Int64.Type) throws -> Int64 {
+        return try unbox(containers.topContainer, as: Int64.self)
     }
 
-    public func decode(_ type: Bool.Type) -> Bool {
-        return unbox(containers.topContainer, as: Bool.self)
+    public func decode(_ type: Bool.Type) throws -> Bool {
+        return try unbox(containers.topContainer, as: Bool.self)
     }
 
-    public func decode(_ type: String.Type) -> String {
-        return unbox(containers.topContainer, as: String.self)
+    public func decode(_ type: String.Type) throws -> String {
+        return try unbox(containers.topContainer, as: String.self)
     }
 
-    public func decode(_ type: Double.Type) -> Double {
-        return unbox(containers.topContainer, as: Double.self)
+    public func decode(_ type: Double.Type) throws -> Double {
+        return try unbox(containers.topContainer, as: Double.self)
     }
 
-    public func decode(_ type: Float.Type) -> Float {
-        return unbox(containers.topContainer, as: Float.self)
+    public func decode(_ type: Float.Type) throws -> Float {
+        return try unbox(containers.topContainer, as: Float.self)
     }
 
-    public func decode(_ type: Int.Type) -> Int {
-        return unbox(containers.topContainer, as: Int.self)
+    public func decode(_ type: Int.Type) throws -> Int {
+        return try unbox(containers.topContainer, as: Int.self)
     }
 
-    public func decode(_ type: UInt.Type) -> UInt {
-        return unbox(containers.topContainer, as: UInt.self)
+    public func decode(_ type: UInt.Type) throws -> UInt {
+        return try unbox(containers.topContainer, as: UInt.self)
     }
 
     // End

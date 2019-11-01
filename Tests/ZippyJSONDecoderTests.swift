@@ -177,7 +177,6 @@ class ZippyJSONTests: XCTestCase {
             assert(decoded == apple)
             // XCTAssertEqual(decoded, value)
         } catch {
-            fatalError()
             XCTFail("Failed to decode \(T.self) from JSON: \(error)")
         }
     }
@@ -366,6 +365,34 @@ class ZippyJSONTests: XCTestCase {
             let l: Double
         }
         _testRoundTrip(of: Test.self, json: "[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]")
+    }
+
+    struct Example: Equatable, Codable {
+        let key: String
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.key = (try? container.decode(String.self, forKey: .key)) ?? ""
+        }
+    }
+
+    struct Example2: Equatable, Codable {
+        let key: String
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            if let double = try? container.decode(Double.self, forKey: .key) {
+                self.key = "\(double)"
+            } else {
+                self.key = try container.decode(String.self, forKey: .key)
+            }
+        }
+    }
+
+    func testOptionalInvalidValue() {
+        _testRoundTrip(of: Example.self, json: "{\"key\": 123}")
+        _testRoundTrip(of: Example2.self, json: "{\"key\": 123}")
+        _testRoundTrip(of: Example2.self, json: "{\"key\": \"123\"}")
     }
 
     func testRealJsons() {
