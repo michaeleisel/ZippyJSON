@@ -282,7 +282,6 @@ final private class __JSONDecoder: Decoder {
         return computeCodingPath(value: containers.topContainer)
     }
     let value: Value
-//    let context:
     let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
     let convertToCamel: Bool
     let dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy
@@ -439,21 +438,6 @@ final private class __JSONDecoder: Decoder {
 }
 
 extension __JSONDecoder {
-    private func createContext() -> ContextPointer {
-        switch nonConformingFloatDecodingStrategy {
-        case .convertFromString(let pI, let nI, let nan):
-            return pI.withCString { pIP in
-                nI.withCString { nIP in
-                    nan.withCString { nanP in
-                        return JNTCreateContext(nIP, pIP, nanP)
-                    }
-                }
-            }
-        case .throw:
-            return JNTCreateContext("", "", "")
-        }
-    }
-
     private func throwingJNTErorr<T>(value: Value, _ execute: () -> T) throws -> T {
         let result = execute()
         let context = JNTContextFromDecoder(value)!
