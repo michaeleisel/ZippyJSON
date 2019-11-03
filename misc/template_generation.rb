@@ -39,6 +39,8 @@ def try(type)
   type == "T" ? "try " : ""
 end
 
+Dir.chdir(__dir__)
+
 types = $number_types + $other_types
 all_types = types + $extended_types
 template = ERB.new(IO.read("template.swift"), 0, "<>").result
@@ -47,7 +49,7 @@ name_to_template = template.split("\n").chunk_while { |a, b| a.start_with?("//")
 def is_delimiter(line)
   line.match(/^\s*\/\/.*(Begin|End)$/)
 end
-code_file = "Sources/ZippyJSON/ZippyJSONDecoder.swift"
+code_file = "../Sources/ZippyJSON/ZippyJSONDecoder.swift"
 chunks = IO.read(code_file).split("\n").chunk_while do |a, b|
   is_delimiter(a) == is_delimiter(b)
 end
