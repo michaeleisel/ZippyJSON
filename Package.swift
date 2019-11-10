@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
     name: "ZippyJSON",
     platforms: [
-        .iOS(.v11.0),
+        .iOS(.v11),
     ],
     products: [
         .library(
