@@ -65,7 +65,7 @@ public final class ZippyJSONDecoder {
 
     public func decode<T : Decodable>(_ type: T.Type, from data: Data) throws -> T {
         if isOnSimulator() && !JNTHasVectorExtensions() {
-          return try decodeWithAppleDecoder(type, from: data, reason: "This library was not compiled with the necessary vector extensions (this is likely because you're using SwiftPM + the simulator, and is due to limitations with SwiftPM. It should still work on real devices.)")
+          return try decodeWithAppleDecoder(type, from: data, reason: "This library was not compiled with the necessary vector extensions (this is likely because you're using SwiftPM + the simulator, and is due to limitations with SwiftPM. This does not apply to real devices.)")
         }
         if case .custom(_) = keyDecodingStrategy {
             return try decodeWithAppleDecoder(type, from: data, reason: "Custom key decoding is not supported, because it is uncommon and makes efficient parsing difficult")
