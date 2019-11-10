@@ -20,9 +20,5 @@ let package = Package(
         .target(
             name: "ZippyJSON",
             dependencies: ["ZippyJSONCFamily", "JJLISO8601DateFormatter"]),
-        .testTarget(
-            name: "ZippyJSONTests",
-            path: "Tests",
-            dependencies: ["ZippyJSON"]),
     ]
 )
