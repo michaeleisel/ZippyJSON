@@ -44,6 +44,8 @@ it, simply add the following line to your Podfile:
 pod 'ZippyJSON'
 ```
 
+You can also make it `pod 'ZippyJSON', :inhibit_warnings => true` if you want to suppress all warnings.
+
 ### SwiftPM
 
 Add the package in the SwiftPM packages area with repository URL https://github.com/michaeleisel/ZippyJSON
