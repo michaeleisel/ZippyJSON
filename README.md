@@ -1,6 +1,7 @@
 # ZippyJSON
 ## A much faster version of JSONDecoder
 [![Cocoapods compatible](https://img.shields.io/badge/Cocoapods-compatible-4BC51D.svg?style=flat)](https://cocoapods.com)
+[![SwiftPM compatible](https://img.shields.io/badge/SwiftPM-Compatible%20%28iOS%29-brightgreen)](https://swift.org/package-manager/)
 
 ## Benchmarks
 
@@ -42,6 +43,10 @@ it, simply add the following line to your Podfile:
 ```ruby
 pod 'ZippyJSON'
 ```
+
+### SwiftPM
+
+Add the package in the SwiftPM packages area with repository URL https://github.com/michaeleisel/ZippyJSON
 
 ## Author
 
