@@ -119,6 +119,23 @@ class ZippyJSONTests: XCTestCase {
         })
     }
 
+  func testLesserUsedFunctions() {
+    struct NestedArrayMember: Codable, Equatable {
+      let a: Int
+    }
+    struct Test: Codable, Equatable {
+      let nestedArray: [NestedArrayMember]
+      init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: JSONKey.self)
+        var unkeyedContainer = try container.nestedUnkeyedContainer(forKey: JSONKey(stringValue: "array")!)
+        let nestedArrayMember = try unkeyedContainer.decode(NestedArrayMember.self)
+        nestedArray = [nestedArrayMember]
+      }
+    }
+
+    _testRoundTrip(of: Test.self, json: #"{"array": [{"a": 3}]}"#)
+  }
+
     func _testFailure<T>(of value: T.Type,
                            json: String,
                            outputFormatting: JSONEncoder.OutputFormatting = [],
