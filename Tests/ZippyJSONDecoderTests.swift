@@ -174,10 +174,8 @@ class ZippyJSONTests: XCTestCase {
             decoder.keyDecodingStrategy = keyDecodingStrategy
             let decoded = try decoder.decode(T.self, from: json.data(using: .utf8)!)
 
-            assert(decoded == apple)
-            // XCTAssertEqual(decoded, value)
+            XCTAssertEqual(decoded, apple)
         } catch {
-            fatalError()
             XCTFail("Failed to decode \(T.self) from JSON: \(error)")
         }
     }
@@ -246,7 +244,7 @@ class ZippyJSONTests: XCTestCase {
     }
 
     func testInts() {
-        // _testRoundTrip(of: UInt8.self, json: "255")
+        _testRoundTrip(of: UInt8.self, json: "255")
         _testFailure(of: [UInt8].self, json: "[256]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number 256 does not fit.")))
         _testFailure(of: [UInt8].self, json: "[-1]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number -1 does not fit.")))
         _testRoundTrip(of: [Int64].self, json: "[\(Int64.max)]")
