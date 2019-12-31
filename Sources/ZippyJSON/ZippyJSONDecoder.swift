@@ -310,12 +310,37 @@ extension JSONKeyedDecoder: AnyJSONKeyedDecoder {
 extension KeyedDecodingContainer: AnyKeyedDecodingContainer {
 }*/
 
+protocol AnyWrapper: class {
+}
+
+extension Wrapper: AnyWrapper {
+}
+
+final private class Wrapper<K: CodingKey> {
+    var decoder: JSONKeyedDecoder<K>
+    init(decoder: JSONKeyedDecoder<K>) {
+        self.decoder = decoder
+    }
+}
+
 final private class KeyedContainerPool {
     // var containers: [(KeyedDecodingContainer, JSONKeyedDecoder)] = []
-    var cache: [ObjectIdentifier: AnyJSONKeyedDecoder] = [:]//(AnyKeyedDecodingContainer, AnyJSONKeyedDecoder)] = [:]
+    var cache: [ObjectIdentifier: AnyWrapper] = [:]//(AnyKeyedDecodingContainer, AnyJSONKeyedDecoder)] = [:]
     
     func reserveContainer<Key: CodingKey>(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws -> KeyedDecodingContainer<Key> {
         let id = ObjectIdentifier(Key.self)
+        if let wrapper = cache[id] as? Wrapper<Key> {
+            if isKnownUniquelyReferenced(&wrapper.decoder) {
+                wrapper.decoder.value = try JSONKeyedDecoder<Key>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
+                return KeyedDecodingContainer(wrapper.decoder)
+            }
+        } else {
+            let decoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
+            cache[id] = Wrapper(decoder: decoder)
+            return KeyedDecodingContainer(decoder)
+        }
+        let decoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
+        return KeyedDecodingContainer(decoder)
         /*if cache[id] != nil {
             var u: Unmanaged<JSONKeyedDecoder<Key>> = Unmanaged.passUnretained(cache[id] as! JSONKeyedDecoder<Key>)
             var dd = u.takeUnretainedValue()
@@ -325,19 +350,27 @@ final private class KeyedContainerPool {
                 dd.value = try JSONKeyedDecoder<Key>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
                 return KeyedDecodingContainer(dd)
             }*/
-        if var object = cache.removeValue(forKey: id) as? JSONKeyedDecoder<Key> {
+        //if var object = cache.removeValue(forKey: id) as? JSONKeyedDecoder<Key> {
+        /*if cache[id] != nil {
+            var wrapper = Unmanaged.passUnretained(cache[id] as! JSONKeyedDecoder<Key>)
+            wrapper.release()
+            var object = wrapper.takeUnretainedValue()
             if isKnownUniquelyReferenced(&object) {
                 object.value = try JSONKeyedDecoder<Key>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
                 return KeyedDecodingContainer(object)
             }
-            cache[id] = object
-        } else {
+            wrapper.retain()*/
+        /*if cache[id] == nil {
             let keyedDecoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
             cache[id] = keyedDecoder//(container, keyedDecoder)
             return KeyedDecodingContainer(keyedDecoder)
         }
+        unowned(unsafe) var object: JSONKeyedDecoder<Key> = cache[id] as! JSONKeyedDecoder<Key>
+        if isKnownUniquelyReferenced(&object) {
+            return KeyedDecodingContainer(object)
+        }
         let keyedDecoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
-        return KeyedDecodingContainer(keyedDecoder)
+        return KeyedDecodingContainer(keyedDecoder)*/
     }
 }
 
