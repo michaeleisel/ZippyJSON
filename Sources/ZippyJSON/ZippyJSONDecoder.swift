@@ -985,7 +985,6 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     }
 
     var nonArrayTypes = Set<ObjectIdentifier>()
-    //var arrayTypes = Set<ObjectIdentifier>()
     var typeMap: [ObjectIdentifier: AnyArray] = [:]
     /*fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T where T: Collection {
         abort()
@@ -1114,16 +1113,43 @@ public extension Decodable {
 }
 
 fileprivate protocol AnyArray: Decodable {
-    // var count: Int { get }
     static func dummy() -> Self
     func create(value: Value, decoder: __JSONDecoder) throws -> Self
-    // func iterator() -> IndexingIterator<Collection>
-    // static func t() -> Any.Type
 }
 
 extension Array: AnyArray where Element: Decodable {
     fileprivate static func dummy() -> Self {
         return []
+    }
+    
+    struct ElementSequence: Sequence, IteratorProtocol {
+        private let decoder: __JSONDecoder
+        private let count: Int
+        private let value: Value
+        var i = 0
+        private var b = false
+        var error: Error? = nil
+        
+        fileprivate init(decoder: __JSONDecoder, count: Int, value: Value) {
+            self.decoder = decoder
+            self.count = count
+            self.value = value
+        }
+        
+        mutating func next() -> Element? {
+            if i >= count {
+                return nil
+            }
+            do {
+                let element = try Element(from: decoder)
+                i += 1
+                JNTDocumentNextArrayElement(value, &b)
+                return element
+            } catch {
+                self.error = error
+            }
+            return nil
+        }
     }
 
     fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
@@ -1132,17 +1158,16 @@ extension Array: AnyArray where Element: Decodable {
         }
         decoder.containers.push(container: currentValue)
         defer { decoder.containers.popContainer() }
-        var isAtEnd = false
         let count = JNTDocumentGetArrayCount(currentValue)
         let array: [Element] = try Array(unsafeUninitializedCapacity: count) { (buffer, countToAssign) in
-            let rawPointer = UnsafeMutableRawPointer(mutating: UnsafeRawPointer(buffer.baseAddress))
-            // Zero it out to be safe
-            memset(rawPointer, 0, MemoryLayout<Element>.stride * count)
-            for i in 0..<count {
-                buffer[i] = try Element(from: decoder)
-                JNTDocumentNextArrayElement(currentValue, &isAtEnd)
+            // We can't use subscript mutation with buffer because Swift requires buffer to be initialized anywhere we mutate it
+            // Instead, init from a lightweight sequence
+            let sequence = ElementSequence(decoder: decoder, count: count, value: value)
+            let _ = buffer.initialize(from: sequence)
+            countToAssign = sequence.i
+            if let error = sequence.error {
+                throw error
             }
-            countToAssign = count
         }
         return array
     }
