@@ -324,7 +324,6 @@ final private class Wrapper<K: CodingKey> {
 }
 
 final private class KeyedContainerPool {
-    // var containers: [(KeyedDecodingContainer, JSONKeyedDecoder)] = []
     var cache: [ObjectIdentifier: AnyWrapper] = [:]//(AnyKeyedDecodingContainer, AnyJSONKeyedDecoder)] = [:]
     
     func reserveContainer<Key: CodingKey>(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws -> KeyedDecodingContainer<Key> {
@@ -341,36 +340,6 @@ final private class KeyedContainerPool {
         }
         let decoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
         return KeyedDecodingContainer(decoder)
-        /*if cache[id] != nil {
-            var u: Unmanaged<JSONKeyedDecoder<Key>> = Unmanaged.passUnretained(cache[id] as! JSONKeyedDecoder<Key>)
-            var dd = u.takeUnretainedValue()
-            // if isKnownUniquelyReferenced(&((cache[id])!))
-            // unowned var object = cache[id] as? JSONKeyedDecoder<Key>
-            if isKnownUniquelyReferenced(&dd) {
-                dd.value = try JSONKeyedDecoder<Key>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
-                return KeyedDecodingContainer(dd)
-            }*/
-        //if var object = cache.removeValue(forKey: id) as? JSONKeyedDecoder<Key> {
-        /*if cache[id] != nil {
-            var wrapper = Unmanaged.passUnretained(cache[id] as! JSONKeyedDecoder<Key>)
-            wrapper.release()
-            var object = wrapper.takeUnretainedValue()
-            if isKnownUniquelyReferenced(&object) {
-                object.value = try JSONKeyedDecoder<Key>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
-                return KeyedDecodingContainer(object)
-            }
-            wrapper.retain()*/
-        /*if cache[id] == nil {
-            let keyedDecoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
-            cache[id] = keyedDecoder//(container, keyedDecoder)
-            return KeyedDecodingContainer(keyedDecoder)
-        }
-        unowned(unsafe) var object: JSONKeyedDecoder<Key> = cache[id] as! JSONKeyedDecoder<Key>
-        if isKnownUniquelyReferenced(&object) {
-            return KeyedDecodingContainer(object)
-        }
-        let keyedDecoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
-        return KeyedDecodingContainer(keyedDecoder)*/
     }
 }
 
@@ -1007,18 +976,20 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         return decoder.unbox(subValue, as: UInt.self)
     }
 
-    func decode<T: Decodable>(_ t: [T].Type, forKey key: K) throws -> [T] {
-        //U.Element
-        abort()
-        //let subValue: Value = key.stringValue.withCString(fetchValue)
-        //return try decoder.unbox(subValue, as: T.self)
-    }
-
+    var nonArrayTypes = Set<ObjectIdentifier>()
+    var arrayTypes = Set<ObjectIdentifier>()
     fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T {
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        if let arrayType = type as? AnyArray.Type {
-            return try arrayType.create(value: value, decoder: decoder) as! T
-        }
+        // let id = ObjectIdentifier(type)
+        // if !nonArrayTypes.contains(<#T##member: ObjectIdentifier##ObjectIdentifier#>)
+        /*if let arrayType = type as? AnyArray.Type {
+            guard let currentValue = JNTDocumentEnterStructureAndReturnCopy(value) else {
+                return [] as! T
+            }
+            decoder.containers.push(container: currentValue)
+            defer { decoder.containers.popContainer() }
+            return try arrayType.create(value: currentValue, decoder: decoder) as! T
+        }*/
         return try decoder.unbox(subValue, as: T.self)
     }
     
@@ -1118,26 +1089,33 @@ extension __JSONDecoder : SingleValueDecodingContainer {
     // End
 }
 
-fileprivate protocol AnyArray {
+public protocol AnyArray {
     // var count: Int { get }
-    static func create(value: Value, decoder: __JSONDecoder) throws -> Self
+    static func create(value: UnsafeMutableRawPointer, decoder: Decoder) throws -> Self
     // func iterator() -> IndexingIterator<Collection>
     // static func t() -> Any.Type
 }
 
 extension Array: AnyArray where Element: Decodable {
-    fileprivate static func create(value: Value, decoder: __JSONDecoder) throws -> Self {
-        guard var currentValue = JNTDocumentEnterStructureAndReturnCopy(value) else {
+    public static func create(value: UnsafeMutableRawPointer, decoder: Decoder) throws -> Self {
+        // let decoderPointer = value.assumingMemoryBound(to: DecoderDummy.self)
+        /*guard var currentValue = JNTDocumentEnterStructureAndReturnCopy(value) else {
             return []
-        }
-        decoder.containers.push(container: currentValue)
-        defer { decoder.containers.popContainer() }
-        var array: [Element] = []
+        }*/
+        let currentValue = value.assumingMemoryBound(to: DecoderDummy.self)
+        // decoder.containers.push(container: currentValue)
+        // defer { decoder.containers.popContainer() }
         var isAtEnd = false
-        while !isAtEnd {
-            let element = try Element(from: decoder)
-            array.append(element)
-            JNTDocumentNextArrayElement(currentValue, &isAtEnd)
+        let count = JNTDocumentGetArrayCount(currentValue)
+        let array: [Element] = try Array(unsafeUninitializedCapacity: count) { (buffer, countToAssign) in
+            let rawPointer = UnsafeMutableRawPointer(mutating: UnsafeRawPointer(buffer.baseAddress))
+            // Zero it out to be safe
+            memset(rawPointer, 0, MemoryLayout<Element>.stride * count)
+            for i in 0..<count {
+                buffer[i] = try Element(from: decoder)
+                JNTDocumentNextArrayElement(currentValue, &isAtEnd)
+            }
+            countToAssign = count
         }
         return array
     }
