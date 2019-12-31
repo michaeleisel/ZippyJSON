@@ -575,11 +575,17 @@ extension __JSONDecoder {
     }
 
     fileprivate func unbox(_ value: Value, as type: String.Type) -> String {
-        let result = JNTDocumentDecode__String(value)
+        let result = JNTDocumentDecode__String(value)!
         if result == nil {
             return ""
         }
-        return String(utf8String: result!)!
+        let mutableResult = UnsafeMutablePointer(mutating: result)
+        let length = Int(JNTGetStringLength(value))
+        let oldChar = mutableResult[length]
+        mutableResult[length] = 0
+        let string = String(d)//String(cString: result)//String(utf8String: result)!
+        mutableResult[length] = oldChar
+        return string
     }
 
     fileprivate func unbox(_ value: Value, as type: Double.Type) -> Double {
@@ -975,22 +981,39 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         let subValue: Value = key.stringValue.withCString(fetchValue)
         return decoder.unbox(subValue, as: UInt.self)
     }
+    
+    func unbox__<T: Decodable>() throws -> T where T: Collection {//_ type: T.Type, value: Value) throws -> T where T: Collection {
+        return try decoder.unbox(value, as: T.self)
+        // abort()
+    }
+    
+    func unbox__<T: Decodable>() throws -> T {//(_ type: T.Type, value: Value) throws -> T {
+        return try decoder.unbox(value, as: T.self)
+    }
 
     var nonArrayTypes = Set<ObjectIdentifier>()
     var arrayTypes = Set<ObjectIdentifier>()
     fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T {
+        //let subValue: Value = key.stringValue.withCString(fetchValue)
+        //return try decoder.unbox(subValue, as: T.self)
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        // let id = ObjectIdentifier(type)
-        // if !nonArrayTypes.contains(<#T##member: ObjectIdentifier##ObjectIdentifier#>)
-        /*if let arrayType = type as? AnyArray.Type {
-            guard let currentValue = JNTDocumentEnterStructureAndReturnCopy(value) else {
-                return [] as! T
+        return try unbox__()//type, value: subValue)
+        /*let id = ObjectIdentifier(type)
+        if nonArrayTypes.contains(id) {
+            return try decoder.unbox(subValue, as: T.self)
+        } else {
+            if arrayTypes.contains(id) {
+                let arrayType = unsafeBitCast(type, to: AnyArray.Type.self)
+                return try arrayType.create(value: value, decoder: decoder) as! T
             }
-            decoder.containers.push(container: currentValue)
-            defer { decoder.containers.popContainer() }
-            return try arrayType.create(value: currentValue, decoder: decoder) as! T
+            if let arrayType = type as? AnyArray.Type {
+                arrayTypes.insert(id)
+                return try arrayType.create(value: value, decoder: decoder) as! T
+            } else {
+                nonArrayTypes.insert(id)
+                return try decoder.unbox(subValue, as: T.self)
+            }
         }*/
-        return try decoder.unbox(subValue, as: T.self)
     }
     
     // End
@@ -1089,22 +1112,20 @@ extension __JSONDecoder : SingleValueDecodingContainer {
     // End
 }
 
-public protocol AnyArray {
+fileprivate protocol AnyArray: Decodable {
     // var count: Int { get }
-    static func create(value: UnsafeMutableRawPointer, decoder: Decoder) throws -> Self
+    static func create(value: Value, decoder: __JSONDecoder) throws -> Self
     // func iterator() -> IndexingIterator<Collection>
     // static func t() -> Any.Type
 }
 
 extension Array: AnyArray where Element: Decodable {
-    public static func create(value: UnsafeMutableRawPointer, decoder: Decoder) throws -> Self {
-        // let decoderPointer = value.assumingMemoryBound(to: DecoderDummy.self)
-        /*guard var currentValue = JNTDocumentEnterStructureAndReturnCopy(value) else {
+    fileprivate static func create(value: Value, decoder: __JSONDecoder) throws -> Self {
+        guard var currentValue = JNTDocumentEnterStructureAndReturnCopy(value) else {
             return []
-        }*/
-        let currentValue = value.assumingMemoryBound(to: DecoderDummy.self)
-        // decoder.containers.push(container: currentValue)
-        // defer { decoder.containers.popContainer() }
+        }
+        decoder.containers.push(container: currentValue)
+        defer { decoder.containers.popContainer() }
         var isAtEnd = false
         let count = JNTDocumentGetArrayCount(currentValue)
         let array: [Element] = try Array(unsafeUninitializedCapacity: count) { (buffer, countToAssign) in
