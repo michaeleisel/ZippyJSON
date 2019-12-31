@@ -298,12 +298,56 @@ private func computeCodingPath(value: Value) -> [JSONKey] {
     }
 }
 
+protocol AnyJSONKeyedDecoder: class {
+}
+
+extension JSONKeyedDecoder: AnyJSONKeyedDecoder {
+}
+
+/*protocol AnyKeyedDecodingContainer {
+}
+
+extension KeyedDecodingContainer: AnyKeyedDecodingContainer {
+}*/
+
+final private class KeyedContainerPool {
+    // var containers: [(KeyedDecodingContainer, JSONKeyedDecoder)] = []
+    var cache: [ObjectIdentifier: AnyJSONKeyedDecoder] = [:]//(AnyKeyedDecodingContainer, AnyJSONKeyedDecoder)] = [:]
+    
+    func reserveContainer<Key: CodingKey>(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws -> KeyedDecodingContainer<Key> {
+        let id = ObjectIdentifier(Key.self)
+        /*if cache[id] != nil {
+            var u: Unmanaged<JSONKeyedDecoder<Key>> = Unmanaged.passUnretained(cache[id] as! JSONKeyedDecoder<Key>)
+            var dd = u.takeUnretainedValue()
+            // if isKnownUniquelyReferenced(&((cache[id])!))
+            // unowned var object = cache[id] as? JSONKeyedDecoder<Key>
+            if isKnownUniquelyReferenced(&dd) {
+                dd.value = try JSONKeyedDecoder<Key>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
+                return KeyedDecodingContainer(dd)
+            }*/
+        if var object = cache.removeValue(forKey: id) as? JSONKeyedDecoder<Key> {
+            if isKnownUniquelyReferenced(&object) {
+                object.value = try JSONKeyedDecoder<Key>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
+                return KeyedDecodingContainer(object)
+            }
+            cache[id] = object
+        } else {
+            let keyedDecoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
+            cache[id] = keyedDecoder//(container, keyedDecoder)
+            return KeyedDecodingContainer(keyedDecoder)
+        }
+        let keyedDecoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
+        return KeyedDecodingContainer(keyedDecoder)
+    }
+}
+
 final private class __JSONDecoder: Decoder {
     var errorType: Any.Type? = nil
     var userInfo: [CodingUserInfoKey : Any] = [:]
     var codingPath: [CodingKey] {
         return computeCodingPath(value: containers.topContainer)
     }
+    let keyedContainerPool = KeyedContainerPool()
     let value: Value
     let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
     let convertToCamel: Bool
@@ -338,7 +382,8 @@ final private class __JSONDecoder: Decoder {
     }
 
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
-        return try KeyedDecodingContainer(JSONKeyedDecoder(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
+        return try keyedContainerPool.reserveContainer(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel)
+        // return try KeyedDecodingContainer(JSONKeyedDecoder(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
     }
 
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
@@ -796,7 +841,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     // End
 }
 
-private struct JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
+private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
     var codingPath: [CodingKey] {
         guard value != decoder.emptyDictionaryDecoder else {
             return decoder.codingPath
@@ -812,24 +857,31 @@ private struct JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol 
 
     var value: Value
 
-    func ensureValueIsDictionary(value: Value) throws {
+    static func ensureValueIsDictionary(value: Value) throws {
         guard JNTDocumentValueIsDictionary(value) else {
-            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: codingPath, debugDescription: "Tried to unbox dictionary, but it wasn't a dictionary"))
+            // todo: fix coding path
+            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: [], debugDescription: "Tried to unbox dictionary, but it wasn't a dictionary"))
         }
     }
 
-    fileprivate init(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws {
+    fileprivate static func setupValue(_ value: Value, decoder: __JSONDecoder, convertToCamel: Bool) throws -> Value {
+        try ensureValueIsDictionary(value: value)
+        let finalValue: Value
         if let innerValue = JNTDocumentEnterStructureAndReturnCopy(value) {
-            self.value = innerValue
+            finalValue = innerValue
         } else {
-            self.value = decoder.emptyDictionaryDecoder
+            finalValue = decoder.emptyDictionaryDecoder
         }
-        self.decoder = decoder
         // todo: fix bug where the keys get converted and then used to create a dictionary later
         if (convertToCamel) {
-            JNTConvertSnakeToCamel(self.value)
+            JNTConvertSnakeToCamel(finalValue)
         }
-        try ensureValueIsDictionary(value: value)
+        return finalValue
+    }
+
+    fileprivate init(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws {
+        try self.value = JSONKeyedDecoder<K>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
+        self.decoder = decoder
     }
 
     var allKeys: [Key] {
@@ -930,18 +982,10 @@ private struct JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol 
     }
 
     fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T {
-        // if T.Type
-        if let a = type as? AnyArray.Type {
-            if let b = a.t() as? Decodable.Type {
-                var a: [Decodable] = []
-                let z = try! b.init(from: decoder)
-                a.append(z)
-            }
-        }
-        // let s = type as! Array<Any>.Type
-        //AnySequence(
-        //let s = type as! Collection
         let subValue: Value = key.stringValue.withCString(fetchValue)
+        if let arrayType = type as? AnyArray.Type {
+            return try arrayType.create(value: value, decoder: decoder) as! T
+        }
         return try decoder.unbox(subValue, as: T.self)
     }
     
@@ -1041,22 +1085,27 @@ extension __JSONDecoder : SingleValueDecodingContainer {
     // End
 }
 
-protocol AnyArray {
-    var count: Int { get }
+fileprivate protocol AnyArray {
+    // var count: Int { get }
+    static func create(value: Value, decoder: __JSONDecoder) throws -> Self
     // func iterator() -> IndexingIterator<Collection>
-    static func t() -> Any.Type
+    // static func t() -> Any.Type
 }
 
 extension Array: AnyArray where Element: Decodable {
-    static func t() -> Any.Type {
-        return Element.self
-    }
-    /*static func initer<T: Element>() -> (Decoder) -> T {
-        return { decoder in
-            return try! Element.init(from: decoder)
+    fileprivate static func create(value: Value, decoder: __JSONDecoder) throws -> Self {
+        guard var currentValue = JNTDocumentEnterStructureAndReturnCopy(value) else {
+            return []
         }
-    }*/
-    /*static func type<Element>() -> Element.Type {
-        return Element.self
-    }*/
+        decoder.containers.push(container: currentValue)
+        defer { decoder.containers.popContainer() }
+        var array: [Element] = []
+        var isAtEnd = false
+        while !isAtEnd {
+            let element = try Element(from: decoder)
+            array.append(element)
+            JNTDocumentNextArrayElement(currentValue, &isAtEnd)
+        }
+        return array
+    }
 }
