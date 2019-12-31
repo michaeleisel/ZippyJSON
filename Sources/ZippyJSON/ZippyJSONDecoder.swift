@@ -575,17 +575,11 @@ extension __JSONDecoder {
     }
 
     fileprivate func unbox(_ value: Value, as type: String.Type) -> String {
-        let result = JNTDocumentDecode__String(value)!
+        let result = JNTDocumentDecode__String(value)
         if result == nil {
             return ""
         }
-        let mutableResult = UnsafeMutablePointer(mutating: result)
-        let length = Int(JNTGetStringLength(value))
-        let oldChar = mutableResult[length]
-        mutableResult[length] = 0
-        let string = String(d)//String(cString: result)//String(utf8String: result)!
-        mutableResult[length] = oldChar
-        return string
+        return String(utf8String: result!)!
     }
 
     fileprivate func unbox(_ value: Value, as type: Double.Type) -> Double {
@@ -983,8 +977,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     }
     
     func unbox__<T: Decodable>() throws -> T where T: Collection {//_ type: T.Type, value: Value) throws -> T where T: Collection {
-        return try decoder.unbox(value, as: T.self)
-        // abort()
+        abort()
     }
     
     func unbox__<T: Decodable>() throws -> T {//(_ type: T.Type, value: Value) throws -> T {
@@ -992,28 +985,30 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     }
 
     var nonArrayTypes = Set<ObjectIdentifier>()
-    var arrayTypes = Set<ObjectIdentifier>()
+    //var arrayTypes = Set<ObjectIdentifier>()
+    var typeMap: [ObjectIdentifier: AnyArray] = [:]
+    /*fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T where T: Collection {
+        abort()
+    }*/
     fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T {
-        //let subValue: Value = key.stringValue.withCString(fetchValue)
-        //return try decoder.unbox(subValue, as: T.self)
+        /*let subValue: Value = key.stringValue.withCString(fetchValue)
+        return try decoder.unbox(subValue, as: T.self)*/
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        return try unbox__()//type, value: subValue)
-        /*let id = ObjectIdentifier(type)
+        let id = ObjectIdentifier(type)
         if nonArrayTypes.contains(id) {
             return try decoder.unbox(subValue, as: T.self)
+        }
+        if let dummyInstance = typeMap[id] {
+            return try dummyInstance.create(value: value, decoder: decoder) as! T
+        }
+        if let arrayType = type as? AnyArray.Type {
+            let dummy = arrayType.dummy()
+            typeMap[id] = dummy
+            return try dummy.create(value: value, decoder: decoder) as! T
         } else {
-            if arrayTypes.contains(id) {
-                let arrayType = unsafeBitCast(type, to: AnyArray.Type.self)
-                return try arrayType.create(value: value, decoder: decoder) as! T
-            }
-            if let arrayType = type as? AnyArray.Type {
-                arrayTypes.insert(id)
-                return try arrayType.create(value: value, decoder: decoder) as! T
-            } else {
-                nonArrayTypes.insert(id)
-                return try decoder.unbox(subValue, as: T.self)
-            }
-        }*/
+            nonArrayTypes.insert(id)
+            return try decoder.unbox(subValue, as: T.self)
+        }
     }
     
     // End
@@ -1112,15 +1107,26 @@ extension __JSONDecoder : SingleValueDecodingContainer {
     // End
 }
 
+public extension Decodable {
+    func decode<T : Decodable, K: CodingKey>(_ type: T.Type, forKey key: K) throws -> T where T: Collection {
+        abort()
+    }
+}
+
 fileprivate protocol AnyArray: Decodable {
     // var count: Int { get }
-    static func create(value: Value, decoder: __JSONDecoder) throws -> Self
+    static func dummy() -> Self
+    func create(value: Value, decoder: __JSONDecoder) throws -> Self
     // func iterator() -> IndexingIterator<Collection>
     // static func t() -> Any.Type
 }
 
 extension Array: AnyArray where Element: Decodable {
-    fileprivate static func create(value: Value, decoder: __JSONDecoder) throws -> Self {
+    fileprivate static func dummy() -> Self {
+        return []
+    }
+
+    fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
         guard var currentValue = JNTDocumentEnterStructureAndReturnCopy(value) else {
             return []
         }
