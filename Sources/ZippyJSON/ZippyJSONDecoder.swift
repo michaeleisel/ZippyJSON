@@ -48,18 +48,18 @@ public final class ZippyJSONDecoder {
         }
     }
 
-    private func createContext() -> ContextPointer {
+    private func createContext(string: UnsafePointer<Int8>, length: Int) -> ContextPointer {
         switch nonConformingFloatDecodingStrategy {
         case .convertFromString(let pI, let nI, let nan):
             return pI.withCString { pIP in
                 nI.withCString { nIP in
                     nan.withCString { nanP in
-                        return JNTCreateContext(nIP, pIP, nanP)
+                        return JNTCreateContext(string, UInt32(length), nIP, pIP, nanP)
                     }
                 }
             }
         case .throw:
-            return JNTCreateContext("", "", "")
+            return JNTCreateContext(string, UInt32(length), "", "", "")
         }
     }
 
@@ -72,7 +72,8 @@ public final class ZippyJSONDecoder {
         }
         return try data.withUnsafeBytes { (bytes) -> T in
             var retryReason: UnsafePointer<CChar>? = nil
-            let context = createContext()
+            let string = bytes.baseAddress?.assumingMemoryBound(to: Int8.self)
+            let context = createContext(string: string!, length: data.count)
             defer {
                 JNTReleaseContext(context)
             }
@@ -402,7 +403,7 @@ final private class __JSONDecoder: Decoder {
         guard let cString = JNTDocumentDecode__DecimalString(value, &length) else { return nil }
         // Although it's mutable, in practice it won't be mutated
         let mutableCString = UnsafeMutableRawPointer(mutating: cString)
-        guard let string = String(bytesNoCopy: mutableCString,length: Int(length),
+        guard let string = String(bytesNoCopy: mutableCString, length: Int(length),
                                   encoding: .utf8, freeWhenDone: false) else {
             return nil
         }
@@ -492,21 +493,36 @@ final private class __JSONDecoder: Decoder {
         }
     }
 
-    fileprivate func unbox<T: Decodable>(_ value: Value, as type: [T].Type) throws -> T {
-        return (try unbox_(value, as: type)) as! T
-    }
-    
     fileprivate func unbox<T : Decodable>(_ value: Value, as type: T.Type) throws -> T {
         return (try unbox_(value, as: type)) as! T
     }
-    
+
+    var nonArrayTypes = Set<ObjectIdentifier>()
+    var typeMap: [ObjectIdentifier: AnyArray] = [:]
+
+    fileprivate func determineIfArrayAndUpdateCaches(type: Decodable.Type) -> AnyArray? {
+        let id = ObjectIdentifier(type)
+        if nonArrayTypes.contains(id) {
+            return nil
+        }
+        if let dummyInstance = typeMap[id] {
+            return dummyInstance
+        }
+        if let arrayType = type as? AnyArray.Type {
+            let dummy = arrayType.dummy()
+            typeMap[id] = dummy
+            return dummy
+        } else {
+            nonArrayTypes.insert(id)
+            return nil
+        }
+    }
+
     fileprivate func unbox_(_ value: Value, as type: Decodable.Type) throws -> Any {
         containers.push(container: value)
         defer { containers.popContainer() }
         
-        /*if type == Array<Any>.self {
-            return try unbox(value, as: Array<Any>.self)
-        } else */if type == Date.self || type == NSDate.self {
+        if type == Date.self || type == NSDate.self {
             return try unbox(value, as: Date.self)
         } else if type == Data.self || type == NSData.self {
             return try unbox(value, as: Data.self)
@@ -521,6 +537,8 @@ final private class __JSONDecoder: Decoder {
             return url
         } else if let stringKeyedDictType = type as? DictionaryWithoutKeyConversion.Type {
             return try unbox(value, as: stringKeyedDictType)
+        } else if let anyArray = determineIfArrayAndUpdateCaches(type: type) {
+            return try anyArray.create(value: value, decoder: self)
         } else {
             return try type.init(from: self)
         }
@@ -975,39 +993,10 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         let subValue: Value = key.stringValue.withCString(fetchValue)
         return decoder.unbox(subValue, as: UInt.self)
     }
-    
-    func unbox__<T: Decodable>() throws -> T where T: Collection {//_ type: T.Type, value: Value) throws -> T where T: Collection {
-        abort()
-    }
-    
-    func unbox__<T: Decodable>() throws -> T {//(_ type: T.Type, value: Value) throws -> T {
-        return try decoder.unbox(value, as: T.self)
-    }
 
-    var nonArrayTypes = Set<ObjectIdentifier>()
-    var typeMap: [ObjectIdentifier: AnyArray] = [:]
-    /*fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T where T: Collection {
-        abort()
-    }*/
     fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T {
-        /*let subValue: Value = key.stringValue.withCString(fetchValue)
-        return try decoder.unbox(subValue, as: T.self)*/
         let subValue: Value = key.stringValue.withCString(fetchValue)
-        let id = ObjectIdentifier(type)
-        if nonArrayTypes.contains(id) {
-            return try decoder.unbox(subValue, as: T.self)
-        }
-        if let dummyInstance = typeMap[id] {
-            return try dummyInstance.create(value: value, decoder: decoder) as! T
-        }
-        if let arrayType = type as? AnyArray.Type {
-            let dummy = arrayType.dummy()
-            typeMap[id] = dummy
-            return try dummy.create(value: value, decoder: decoder) as! T
-        } else {
-            nonArrayTypes.insert(id)
-            return try decoder.unbox(subValue, as: T.self)
-        }
+        return try decoder.unbox(subValue, as: T.self)
     }
     
     // End
@@ -1122,11 +1111,11 @@ extension Array: AnyArray where Element: Decodable {
         return []
     }
     
-    struct ElementSequence: Sequence, IteratorProtocol {
-        private let decoder: __JSONDecoder
+    final class ElementSequence: Sequence, IteratorProtocol {
+        private unowned(unsafe) let decoder: __JSONDecoder
         private let count: Int
         private let value: Value
-        var i = 0
+        fileprivate var i = 0
         private var b = false
         var error: Error? = nil
         
@@ -1136,7 +1125,7 @@ extension Array: AnyArray where Element: Decodable {
             self.value = value
         }
         
-        mutating func next() -> Element? {
+        func next() -> Element? {
             if i >= count {
                 return nil
             }
@@ -1162,7 +1151,7 @@ extension Array: AnyArray where Element: Decodable {
         let array: [Element] = try Array(unsafeUninitializedCapacity: count) { (buffer, countToAssign) in
             // We can't use subscript mutation with buffer because Swift requires buffer to be initialized anywhere we mutate it
             // Instead, init from a lightweight sequence
-            let sequence = ElementSequence(decoder: decoder, count: count, value: value)
+            let sequence = ElementSequence(decoder: decoder, count: count, value: currentValue)
             let _ = buffer.initialize(from: sequence)
             countToAssign = sequence.i
             if let error = sequence.error {

@@ -10,7 +10,7 @@
 
 // REQUIRES: objc_interop
 
-import StdlibUnittest
+/*import StdlibUnittest
 import Foundation
 
 var CodableMultifileTestSuite = TestSuite("CodableMultifile")
@@ -77,4 +77,4 @@ CodableMultifileTestSuite.test("3") {
     String(data: try! encoder.encode(base), encoding: .utf8)!)
 }
 
-runAllTests()
+runAllTests()*/
