@@ -236,12 +236,13 @@ class ZippyJSONTests: XCTestCase {
         decoder.nonConformingFloatDecodingStrategy = nonConformingFloatDecodingStrategy
         decoder.keyDecodingStrategy = keyDecodingStrategy
         do {
-            try decoder.decode(T.self, from: json.data(using: .utf8)!)
+            let _ = try decoder.decode(T.self, from: json.data(using: .utf8)!)
+            XCTFail()
         } catch {
             if let e = error as? DecodingError {
-                if (e != expectedError) { fatalError() }
+                XCTAssertEqual(e, expectedError)// (e != expectedError) { fatalError() }
             } else {
-                abort()
+                XCTFail()
             }
         }
     }
@@ -302,15 +303,23 @@ class ZippyJSONTests: XCTestCase {
         testRoundTrip(of: [[[[Int]]]].self, json: "[[[[]]]]")
         testRoundTrip(of: [[[[Int]]]].self, json: "[[[[2, 3]]]]")
         testRoundTrip(of: [Bool].self, json: "[false, true]")
-        _testFailure(of: [Int].self, json: #"{"a": 1}"#, expectedError: DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: [JSONKey(stringValue: "a")!], debugDescription: "Tried to unbox array, but it wasn\'t an array")))
+        _testFailure(of: [Int].self, json: #"{"a": 1}"#, expectedError: DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: [], debugDescription: "Tried to unbox array, but it wasn\'t an array")))
     }
 
     func testInvalidJSON() {
         _testFailure(of: [Int].self, json: "{a: 255}", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "The given data was not valid JSON. Error: Something went wrong while writing to the tape")))
     }
+    
+    func testRawValuePassedAsJson() {
+        // DecodingError.Context(codingPath: <#T##[CodingKey]#>, debugDescription: <#T##String#>, underlyingError: <#T##Error?#>)
+        // testRoundTrip(of: [UInt8].self, json: "255")
+        // _testFailure(of: UInt8.self, json: "255", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number 256 does not fit.")))
+        _testFailure(of: Bool.self, json: "false", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "The given data was not valid JSON. Error: Problem while parsing an atom starting with the letter \'f\'")))
+        _testFailure(of: Int64.self, json: "255", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "The given data was not valid JSON.")))
+    }
 
     func testInts() {
-        testRoundTrip(of: UInt8.self, json: "255")
+        testRoundTrip(of: [UInt8].self, json: "[255]")
         _testFailure(of: [UInt8].self, json: "[256]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number 256 does not fit.")))
         _testFailure(of: [UInt8].self, json: "[-1]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number -1 does not fit.")))
         testRoundTrip(of: [Int64].self, json: "[\(Int64.max)]")
@@ -397,7 +406,7 @@ class ZippyJSONTests: XCTestCase {
     func run<T: Codable & Equatable>(_ filename: String, _ type: T.Type, keyDecoding: ZippyJSONDecoder.KeyDecodingStrategy = .useDefaultKeys, dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy = .deferredToDate) {
         let json = dataFromFile(filename + ".json")
         testRoundTrip(of: type, json: String(data: json, encoding: .utf8)!,
-                      dateDecodingStrategy: dateDecodingStrategy,testPerformance: true)
+                      dateDecodingStrategy: dateDecodingStrategy, testPerformance: false)
     }
 
     func testArrayTypes() {

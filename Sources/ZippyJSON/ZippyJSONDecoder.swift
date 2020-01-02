@@ -386,7 +386,6 @@ final private class __JSONDecoder: Decoder {
 
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
         return try keyedContainerPool.reserveContainer(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel)
-        // return try KeyedDecodingContainer(JSONKeyedDecoder(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
     }
 
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
@@ -398,16 +397,22 @@ final private class __JSONDecoder: Decoder {
     }
     
     fileprivate func unboxDecimal(_ value: Value) -> Decimal? {
-        guard JNTDocumentValueIsNumber(value) else { return nil }
-        var length: Int32 = 0
-        guard let cString = JNTDocumentDecode__DecimalString(value, &length) else { return nil }
-        // Although it's mutable, in practice it won't be mutated
-        let mutableCString = UnsafeMutableRawPointer(mutating: cString)
-        guard let string = String(bytesNoCopy: mutableCString, length: Int(length),
-                                  encoding: .utf8, freeWhenDone: false) else {
+        if JNTDocumentValueIsDouble(value) {
+            var length: Int32 = 0
+            guard let cString = JNTDocumentDecode__DecimalString(value, &length) else { return nil }
+            // Although it's mutable, in practice it won't be mutated
+            let mutableCString = UnsafeMutableRawPointer(mutating: cString)
+            guard let string = String(bytesNoCopy: mutableCString, length: Int(length),
+                                      encoding: .utf8, freeWhenDone: false) else {
+                return nil
+            }
+            return Decimal(string: string)
+        } else if JNTDocumentValueIsInteger(value) {
+            let number = unbox(value, as: Int64.self)
+            return Decimal(number)
+        } else {
             return nil
         }
-        return Decimal(string: string)
     }
 
     fileprivate func unbox(_ value: Value, as type: Decimal.Type) throws -> Decimal {
@@ -537,8 +542,8 @@ final private class __JSONDecoder: Decoder {
             return url
         } else if let stringKeyedDictType = type as? DictionaryWithoutKeyConversion.Type {
             return try unbox(value, as: stringKeyedDictType)
-        } else if let anyArray = determineIfArrayAndUpdateCaches(type: type) {
-            return try anyArray.create(value: value, decoder: self)
+        //} else if let anyArray = determineIfArrayAndUpdateCaches(type: type) {
+            //return try anyArray.create(value: value, decoder: self)
         } else {
             return try type.init(from: self)
         }
@@ -676,6 +681,13 @@ fileprivate struct JSONKey : CodingKey {
 
 fileprivate let keyPlaceholder: JSONKey = JSONKey(index: 0)
 
+/*private func arrayCodingPath(decoder: __JSONDecoder, currentValue: Value) -> [JSONKey] {
+    guard self.count != 0 else {
+        return decoder.codingPath
+    }
+    return computeCodingPath(value: currentValue)
+}*/
+
 private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var currentValue: Value
     var count: Int?
@@ -684,9 +696,6 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var isAtEnd: Bool
 
     var codingPath: [CodingKey] {
-        guard self.count != 0 else {
-            return decoder.codingPath
-        }
         return computeCodingPath(value: currentValue)
     }
 
@@ -696,19 +705,21 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         if let currentValue = JNTDocumentEnterStructureAndReturnCopy(startingValue) {
             self.currentValue = currentValue
             self.isAtEnd = false
-            self.count = nil // is this slow?
+            self.count = nil //JNTDocumentGetArrayCount(currentValue) //nil // is this slow?
         } else {
             self.currentValue = startingValue
             self.isAtEnd = true
             self.count = 0
         }
-        try ensureValueIsArray(value: startingValue)
+        try JSONUnkeyedDecoder.ensureValueIsArray(value: startingValue)
     }
 
     func decodeNil() throws -> Bool {
         try ensureArrayIsNotAtEnd()
         let isNil = JNTDocumentDecodeNil(currentValue)
-        advanceArray()
+        if isNil {
+            advanceArray()
+        }
         return isNil
     }
 
@@ -732,9 +743,9 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         }
     }
 
-    func ensureValueIsArray(value: Value) throws {
+    static func ensureValueIsArray(value: Value) throws {
         guard JNTDocumentValueIsArray(value) else {
-            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: codingPath, debugDescription: "Tried to unbox array, but it wasn't an array"))
+            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: computeCodingPath(value: value), debugDescription: "Tried to unbox array, but it wasn't an array"))
         }
     }
 
@@ -1101,47 +1112,111 @@ public extension Decodable {
     }
 }
 
-fileprivate protocol AnyArray: Decodable {
-    static func dummy() -> Self
-    func create(value: Value, decoder: __JSONDecoder) throws -> Self
+private func getSequence<T: Decodable>(decoder: __JSONDecoder, count: Int, value: Value) -> SequenceParent<T> {
+    return ElementSequence<T>(decoder: decoder, count: count, value: value)
 }
 
-extension Array: AnyArray where Element: Decodable {
+private func getSequence<T>(decoder: __JSONDecoder, count: Int, value: Value) -> SequenceParent<T> where T: AnyArray {//U where U.Element == T, T: AnyArray {
+    return ArraySequence<T>(decoder: decoder, count: count, value: value)
+}
+
+private class SequenceParent<T: Decodable>: Sequence, IteratorProtocol {
+    func next() -> T? {
+        fatalError()
+    }
+}
+
+private final class ArraySequence<T: Decodable & AnyArray>: SequenceParent<T> {
+    private unowned(unsafe) let decoder: __JSONDecoder
+    private let count: Int
+    private let value: Value
+    fileprivate var i = 0
+    private var b = false
+    var error: Error? = nil
+    let dummy: T = T.dummy()
+    
+    fileprivate init(decoder: __JSONDecoder, count: Int, value: Value) {
+        self.decoder = decoder
+        self.count = count
+        self.value = value
+    }
+    
+    override func next() -> T? {
+        if i >= count {
+            return nil
+        }
+        do {
+            let element: T = try dummy.create(value: value, decoder: decoder)
+            i += 1
+            JNTDocumentNextArrayElement(value, &b)
+            return element
+        } catch {
+            self.error = error
+        }
+        return nil
+    }
+}
+
+private final class ElementSequence<T: Decodable>: SequenceParent<T> {
+    private unowned(unsafe) let decoder: __JSONDecoder
+    private let count: Int
+    private let value: Value
+    fileprivate var i = 0
+    private var b = false
+    var error: Error? = nil
+
+    fileprivate init(decoder: __JSONDecoder, count: Int, value: Value) {
+        self.decoder = decoder
+        self.count = count
+        self.value = value
+    }
+    
+    override func next() -> T? {
+        if i >= count {
+            return nil
+        }
+        do {
+            let element: T
+                //element = try anyArray.create(value: value, decoder: decoder) as! Element //try Element(from: decoder) //try decoder.unbox(value, as: Element.self)
+            //} else {
+            element = try Element(from: decoder)
+            //}
+            i += 1
+            JNTDocumentNextArrayElement(value, &b)
+            return element
+        } catch {
+            self.error = error
+        }
+        return nil
+    }
+}
+
+protocol AnyArray {
+}
+
+extension AnyArray {
+    fileprivate static func dummy() -> Self {
+        abort()
+    }
+    
+    fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
+        abort()
+    }
+}
+
+/*extension Decodable where Self: Array<Any> {
+    fileprivate init(from decoder: Decoder) throws {
+        abort()
+    }
+}*/
+
+/*extension Array: AnyArray where Element: Decodable & AnyArray {
     fileprivate static func dummy() -> Self {
         return []
     }
     
-    final class ElementSequence: Sequence, IteratorProtocol {
-        private unowned(unsafe) let decoder: __JSONDecoder
-        private let count: Int
-        private let value: Value
-        fileprivate var i = 0
-        private var b = false
-        var error: Error? = nil
-        
-        fileprivate init(decoder: __JSONDecoder, count: Int, value: Value) {
-            self.decoder = decoder
-            self.count = count
-            self.value = value
-        }
-        
-        func next() -> Element? {
-            if i >= count {
-                return nil
-            }
-            do {
-                let element = try Element(from: decoder)
-                i += 1
-                JNTDocumentNextArrayElement(value, &b)
-                return element
-            } catch {
-                self.error = error
-            }
-            return nil
-        }
-    }
-
     fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
+        try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
         guard var currentValue = JNTDocumentEnterStructureAndReturnCopy(value) else {
             return []
         }
@@ -1151,13 +1226,72 @@ extension Array: AnyArray where Element: Decodable {
         let array: [Element] = try Array(unsafeUninitializedCapacity: count) { (buffer, countToAssign) in
             // We can't use subscript mutation with buffer because Swift requires buffer to be initialized anywhere we mutate it
             // Instead, init from a lightweight sequence
-            let sequence = ElementSequence(decoder: decoder, count: count, value: currentValue)
+            let sequence: SequenceParent<Element> = getSequence(decoder: decoder, count: count, value: currentValue)//ElementSequence(decoder: decoder, count: count, value: currentValue)
             let _ = buffer.initialize(from: sequence)
-            countToAssign = sequence.i
-            if let error = sequence.error {
-                throw error
-            }
+            countToAssign = count//sequence.i
         }
         return array
     }
+}*/
+
+/*fileprivate protocol AnyAnyArray {}
+
+extension Array: AnyAnyArray {}
+
+fileprivate protocol AnyArray: Decodable {
+    static func dummy() -> Self
+    func create(value: Value, decoder: __JSONDecoder) throws -> Self
 }
+
+extension AnyArray {
+    fileprivate static func dummy() -> Self {
+        abort()
+    }
+    
+    fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
+        abort()
+    }
+}
+
+extension Array: AnyArray where Element: Decodable & AnyAnyArray {
+    static func dummy() -> Array<Element> {
+        abort()
+    }
+
+    func create(value: Value, decoder: __JSONDecoder) throws -> Array<Element> {
+        abort()
+    }
+}
+
+/*extension AnyArray where Self: Collection & ExpressibleByArrayLiteral {
+    fileprivate static func dummy() -> Self {
+        return []
+    }
+    
+    fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
+        try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
+        guard var currentValue = JNTDocumentEnterStructureAndReturnCopy(value) else {
+            return []
+        }
+        decoder.containers.push(container: currentValue)
+        defer { decoder.containers.popContainer() }
+        let count = JNTDocumentGetArrayCount(currentValue)
+        let array: [Element] = try Array(unsafeUninitializedCapacity: count) { (buffer, countToAssign) in
+            // We can't use subscript mutation with buffer because Swift requires buffer to be initialized anywhere we mutate it
+            // Instead, init from a lightweight sequence
+            let sequence: SequenceParent<Element> = getSequence(decoder: decoder, count: count, value: currentValue)//ElementSequence(decoder: decoder, count: count, value: currentValue)
+            let _ = buffer.initialize(from: sequence)
+            countToAssign = count//sequence.i
+        }
+        return array as! Self
+    }
+}
+
+protocol DecodableCollection: Collection where Collection.Element: Decodable {
+}
+
+protocol NestedArray {}
+
+extension Array: NestedArray where Element: Collection {}
+
+extension Array: AnyArray where Element: Decodable {}*/*/

@@ -15,7 +15,7 @@ import ZippyJSON
 internal func _testCodableRoundTrip<T : Codable>(input: T, file: StaticString = #file, line: UInt = #line, validation: (T) -> Void) {
     do {
         let encoder = JSONEncoder()
-        let decoder = JSONDecoder() //ZippyJSONDecoder()
+        let decoder = /*Zippy*/JSONDecoder()
 
         let data   = try encoder.encode(input)
         let result = try decoder.decode(T.self, from: data)
