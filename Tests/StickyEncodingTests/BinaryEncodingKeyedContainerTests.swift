@@ -1686,10 +1686,10 @@ class BinaryEncodingKeyedContainerTests: XCTestCase {
         }
 
         /// Run test on TestType
-        /*_testCodableRoundTrip(input: SubType(subValue: "Test Value", superValue: 32)) { (result) in
+        _testCodableRoundTrip(input: SubType(subValue: "Test Value", superValue: 32)) { (result) in
             XCTAssertEqual(result.subValue, "Test Value")
             XCTAssertEqual(result.superValue, 32)
-        }*/
+        }
     }
 
     ///
@@ -1732,10 +1732,10 @@ class BinaryEncodingKeyedContainerTests: XCTestCase {
         }
 
         /// Run test on TestType
-        /*_testCodableRoundTrip(input: SubType(subValue: "Test Value", superValue: 32)) { (result) in
+        _testCodableRoundTrip(input: SubType(subValue: "Test Value", superValue: 32)) { (result) in
             XCTAssertEqual(result.subValue, "Test Value")
             XCTAssertEqual(result.superValue, 32)
-        }*/
+        }
     }
 }
 

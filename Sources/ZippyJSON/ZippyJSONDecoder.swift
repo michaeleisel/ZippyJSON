@@ -6,7 +6,6 @@ import JJLISO8601DateFormatter
 
 typealias Value = UnsafeMutablePointer<DecoderDummy>
 
-@available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *)
 fileprivate var _iso8601Formatter: JJLISO8601DateFormatter = {
     let formatter = JJLISO8601DateFormatter()
     formatter.formatOptions = .withInternetDateTime
@@ -134,11 +133,7 @@ public final class ZippyJSONDecoder {
         case .deferredToDate:
             return Foundation.JSONDecoder.DateDecodingStrategy.deferredToDate
         case .iso8601:
-            if #available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *) {
-                return Foundation.JSONDecoder.DateDecodingStrategy.iso8601
-            } else {
-                fatalError("JJLISO8601DateFormatter is unavailable on this platform.")
-            }
+            return Foundation.JSONDecoder.DateDecodingStrategy.iso8601
         case .millisecondsSince1970:
             return Foundation.JSONDecoder.DateDecodingStrategy.millisecondsSince1970
         case .secondsSince1970:
@@ -200,7 +195,6 @@ public final class ZippyJSONDecoder {
         case deferredToDate
         case secondsSince1970
         case millisecondsSince1970
-        @available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *)
         case iso8601
         case formatted(DateFormatter)
         case custom((Decoder) throws -> Date)
@@ -250,8 +244,6 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer) -> Error {
             error = DecodingError.valueNotFound(instanceType, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
         case .jsonParsingFailed:
             error = DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: debugDescription))
-        case .wentPastEndOfArray:
-            error = DecodingError.valueNotFound(Any.self, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
         case .none:
             fallthrough
         @unknown default:
@@ -288,15 +280,19 @@ final private class JSONDecodingStorage {
     }
 }
 
-private func computeCodingPath(value: Value) -> [JSONKey] {
-    return JNTDocumentCodingPath(value).compactMap {
-        if let index = $0 as? NSNumber {
+private func computeCodingPath(value: Value, removeLastIfDictionary: Bool = true) -> [JSONKey] {
+    var codingPath = JNTDocumentCodingPath(value).compactMap { element -> JSONKey? in
+        if let index = element as? NSNumber {
             return JSONKey(index: index.intValue)
-        } else if let key = $0 as? NSString {
+        } else if let key = element as? NSString {
             return JSONKey(stringValue: String(key))
         }
         return nil // Wouldn't happen
     }
+    if removeLastIfDictionary, let last = codingPath.last, last.intValue == nil {
+        codingPath.removeLast()
+    }
+    return codingPath
 }
 
 protocol AnyJSONKeyedDecoder: class {
@@ -331,7 +327,8 @@ final private class KeyedContainerPool {
         let id = ObjectIdentifier(Key.self)
         if let wrapper = cache[id] as? Wrapper<Key> {
             if isKnownUniquelyReferenced(&wrapper.decoder) {
-                wrapper.decoder.value = try JSONKeyedDecoder<Key>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
+                let innerDecoder = wrapper.decoder
+                (innerDecoder.value, innerDecoder.codingPathValue) = try JSONKeyedDecoder<Key>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
                 return KeyedDecodingContainer(wrapper.decoder)
             }
         } else {
@@ -383,11 +380,11 @@ final private class __JSONDecoder: Decoder {
         }
         self.emptyDictionaryDecoder = JNTEmptyDictionaryDecoder(value)
     }
-
+    
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
         return try keyedContainerPool.reserveContainer(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel)
     }
-
+    
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
         return try JSONUnkeyedDecoder(decoder: self, startingValue: containers.topContainer)
     }
@@ -395,7 +392,7 @@ final private class __JSONDecoder: Decoder {
     public func singleValueContainer() throws -> SingleValueDecodingContainer {
         return self
     }
-    
+
     fileprivate func unboxDecimal(_ value: Value) -> Decimal? {
         if JNTDocumentValueIsDouble(value) {
             var length: Int32 = 0
@@ -438,17 +435,12 @@ final private class __JSONDecoder: Decoder {
             return Date(timeIntervalSince1970: double / 1000.0)
 
         case .iso8601:
-            if #available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *) {
-                let string = self.unbox(value, as: String.self)
-                guard let date = _iso8601Formatter.date(from: string) else {
-                    throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Expected date string to be ISO8601-formatted."))
-                }
-
-                return date
-            } else {
-                fatalError("JJLISO8601DateFormatter is unavailable on this platform.")
+            let string = self.unbox(value, as: String.self)
+            guard let date = _iso8601Formatter.date(from: string) else {
+                throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Expected date string to be ISO8601-formatted."))
             }
 
+            return date
         case .formatted(let formatter):
             let string = self.unbox(value, as: String.self)
             guard let date = formatter.date(from: string) else {
@@ -502,7 +494,7 @@ final private class __JSONDecoder: Decoder {
         return (try unbox_(value, as: type)) as! T
     }
 
-    var nonArrayTypes = Set<ObjectIdentifier>()
+    /*var nonArrayTypes = Set<ObjectIdentifier>()
     var typeMap: [ObjectIdentifier: AnyArray] = [:]
 
     fileprivate func determineIfArrayAndUpdateCaches(type: Decodable.Type) -> AnyArray? {
@@ -521,7 +513,7 @@ final private class __JSONDecoder: Decoder {
             nonArrayTypes.insert(id)
             return nil
         }
-    }
+    }*/
 
     fileprivate func unbox_(_ value: Value, as type: Decodable.Type) throws -> Any {
         containers.push(container: value)
@@ -648,7 +640,7 @@ extension __JSONDecoder {
         defer {
             containers.popContainer()
         }
-        return try KeyedDecodingContainer(JSONKeyedDecoder<NestedKey>(decoder: self, value: value, convertToCamel: convertToCamel))
+        return try keyedContainerPool.reserveContainer(decoder: self, value: value, convertToCamel: convertToCamel)
     }
 }
 
@@ -690,16 +682,22 @@ fileprivate let keyPlaceholder: JSONKey = JSONKey(index: 0)
 
 private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var currentValue: Value
+    // var codingPathValue: Value?
     var count: Int?
     private unowned(unsafe) let decoder: __JSONDecoder
     var currentIndex: Int
     var isAtEnd: Bool
 
     var codingPath: [CodingKey] {
-        return computeCodingPath(value: currentValue)
+        return computeCodingPath(value: currentValue, removeLastIfDictionary: false)
+    }
+    
+    deinit {
+        JNTReleaseValue(currentValue);
     }
 
     fileprivate init(decoder: __JSONDecoder, startingValue: Value) throws {
+        try JSONUnkeyedDecoder.ensureValueIsArray(value: startingValue)
         self.decoder = decoder
         self.currentIndex = 0
         if let currentValue = JNTDocumentEnterStructureAndReturnCopy(startingValue) {
@@ -707,11 +705,10 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
             self.isAtEnd = false
             self.count = nil //JNTDocumentGetArrayCount(currentValue) //nil // is this slow?
         } else {
-            self.currentValue = startingValue
+            self.currentValue = JNTDocumentCreateCopy(startingValue)
             self.isAtEnd = true
             self.count = 0
         }
-        try JSONUnkeyedDecoder.ensureValueIsArray(value: startingValue)
     }
 
     func decodeNil() throws -> Bool {
@@ -874,19 +871,20 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
 private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
     var codingPath: [CodingKey] {
-        guard value != decoder.emptyDictionaryDecoder else {
-            return decoder.codingPath
-        }
-        return computeCodingPath(value: value)
+        return computeCodingPath(value: codingPathValue ?? value, removeLastIfDictionary: codingPathValue == nil)
     }
 
     unowned(unsafe) private let decoder: __JSONDecoder
 
-    var currentIndex: Int = 0
+    var codingPathValue: Value?
 
     typealias Key = K
 
     var value: Value
+    
+    deinit {
+        JNTReleaseValue(value)
+    }
 
     static func ensureValueIsDictionary(value: Value) throws {
         guard JNTDocumentValueIsDictionary(value) else {
@@ -895,23 +893,23 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         }
     }
 
-    fileprivate static func setupValue(_ value: Value, decoder: __JSONDecoder, convertToCamel: Bool) throws -> Value {
+    fileprivate static func setupValue(_ value: Value, decoder: __JSONDecoder, convertToCamel: Bool) throws -> (Value, Value?) {
         try ensureValueIsDictionary(value: value)
         let finalValue: Value
-        if let innerValue = JNTDocumentEnterStructureAndReturnCopy(value) {
-            finalValue = innerValue
-        } else {
-            finalValue = decoder.emptyDictionaryDecoder
-        }
+        let codingPathValue: Value?
+        var success = false
+        let innerValue = JNTDocumentEnterStructureAndReturnCopy(value, &success)
+        finalValue = innerValue
+        if innerValue 
         // todo: fix bug where the keys get converted and then used to create a dictionary later
         if (convertToCamel) {
             JNTConvertSnakeToCamel(finalValue)
         }
-        return finalValue
+        return (finalValue, codingPathValue)
     }
 
     fileprivate init(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws {
-        try self.value = JSONKeyedDecoder<K>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
+        try (self.value, self.codingPathValue) = JSONKeyedDecoder<K>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
         self.decoder = decoder
     }
 
@@ -1106,7 +1104,7 @@ extension __JSONDecoder : SingleValueDecodingContainer {
     // End
 }
 
-public extension Decodable {
+/*public extension Decodable {
     func decode<T : Decodable, K: CodingKey>(_ type: T.Type, forKey key: K) throws -> T where T: Collection {
         abort()
     }
@@ -1189,9 +1187,9 @@ private final class ElementSequence<T: Decodable>: SequenceParent<T> {
         }
         return nil
     }
-}
+}*/
 
-protocol AnyArray {
+/*protocol AnyArray {
 }
 
 extension AnyArray {
@@ -1202,7 +1200,7 @@ extension AnyArray {
     fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
         abort()
     }
-}
+}*/
 
 /*extension Decodable where Self: Array<Any> {
     fileprivate init(from decoder: Decoder) throws {

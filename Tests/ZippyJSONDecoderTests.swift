@@ -2,6 +2,7 @@
 
 import XCTest
 import ZippyJSON
+import ZippyJSONCFamily
 
 struct TestCodingKey: CodingKey {
     var stringValue: String
@@ -43,6 +44,13 @@ extension DecodingError: Equatable {
         }
         return false
     }
+}
+
+func aKeysEqual(_ lhs: [CodingKey], _ rhs: [CodingKey]) -> Bool {
+    guard lhs.count == rhs.count else { return false }
+    return zip(lhs, rhs).map { (l, r) -> Bool in
+        return l.stringValue == r.stringValue || (l.intValue != nil && l.intValue == r.intValue)
+    }.reduce(true) { $0 && $1 }
 }
 
 func keysEqual(_ lhs: CodingKey, _ rhs: CodingKey) -> Bool {
@@ -156,7 +164,30 @@ fileprivate struct JSONKey : CodingKey {
     }
 
     fileprivate static let `super` = JSONKey(stringValue: "super")!
+
+    fileprivate static func create(_ values: [StringOrInt]) -> [JSONKey] {
+        return values.map {
+            if let i = $0 as? Int {
+                return JSONKey(intValue: i)!
+            }
+            return JSONKey(stringValue: $0 as! String)!
+        }
+    }
 }
+
+protocol StringOrInt {
+}
+
+extension String: StringOrInt {}
+
+extension Int: StringOrInt {}
+
+extension CodingKey {
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        return lhs.stringValue == rhs.stringValue && lhs.intValue == rhs.intValue
+    }
+}
+
 
 extension DecodingError.Context: Equatable {
     public static func == (lhs: DecodingError.Context, rhs: DecodingError.Context) -> Bool {
@@ -184,6 +215,11 @@ class ZippyJSONTests: XCTestCase {
         let string = try! String(contentsOfFile: path)
         return string.data(using: .utf8)!
     }
+    
+    func testData() {
+        let error = DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Encountered Data is not valid Base64."))
+        _testFailure(of: [Data].self, json: #"["😊"]"#, expectedError: error)
+    }
 
     func assertEqualsApple<T: Codable & Equatable>(data: Data, type: T.Type) {
         let testDecoder = ZippyJSONDecoder()
@@ -191,6 +227,90 @@ class ZippyJSONTests: XCTestCase {
         let testObject = try! testDecoder.decode(type, from: data)
         let appleObject = try! appleDecoder.decode(type, from: data)
         XCTAssertEqual(appleObject, testObject)
+    }
+    
+    func testNestedDecode() {
+        struct Aa: Equatable & Codable {
+            let a: [Int]
+            let b: [Int]
+            init(from decoder: Decoder) throws {
+                var container = try decoder.unkeyedContainer()
+                var nestedContainer = try container.nestedUnkeyedContainer()
+                self.a = [try nestedContainer.decode(Int.self)]
+                self.b = [try container.decode(Int.self)]
+            }
+        }
+        testRoundTrip(of: Aa.self, json: #"[[2], 3]"#)
+
+        struct Bb: Equatable & Codable {
+            let a: Int
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: JSONKey.self)
+                let nestedContainer = try container.nestedContainer(keyedBy: JSONKey.self, forKey: JSONKey(stringValue: "value")!)
+                self.a = try nestedContainer.decode(Int.self, forKey: JSONKey(stringValue: "inner")!)
+            }
+        }
+        testRoundTrip(of: Bb.self, json: #"{"value": {"inner": 4}}"#)
+    }
+    
+    func testCodingPath() {
+        struct Aa: Equatable & Codable {
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: JSONKey.self)
+                XCTAssert(container.allKeys.count == 0)
+                XCTAssertEqual(container.codingPath.count, 0)
+            }
+        }
+        testRoundTrip(of: Aa.self, json: "{}")
+        
+        struct Cc: Equatable & Codable {
+            init(from decoder: Decoder) throws {
+                for _ in 0..<3 {
+                    let container = try decoder.container(keyedBy: JSONKey.self)
+                    let inner = try container.nestedContainer(keyedBy: JSONKey.self, forKey: JSONKey(stringValue: "inner")!)
+                    XCTAssert(aKeysEqual(container.allKeys, [JSONKey(stringValue: "inner")!]))
+                    let path = [JSONKey(stringValue: "inner")!]
+                    let testPath = inner.codingPath
+                    XCTAssert(aKeysEqual(testPath, path))
+                }
+            }
+        }
+        testRoundTrip(of: Cc.self, json: #"{"inner": {"a": 2}}"#)
+        
+        struct Bb: Equatable & Codable {
+            init(from decoder: Decoder) throws {
+                let container = try decoder.unkeyedContainer()
+                XCTAssertEqual(container.codingPath.count, 0)
+            }
+        }
+        testRoundTrip(of: Bb.self, json: "[]")
+    }
+        
+    func testMoreCodingPath() {
+        struct Dd: Equatable & Codable {
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: JSONKey.self)
+                let emptyDict = try container.nestedContainer(keyedBy: JSONKey.self, forKey: JSONKey(stringValue: "emptyDict")!)
+                let emptyArray = try container.nestedUnkeyedContainer(forKey: JSONKey(stringValue: "emptyArray")!)
+                XCTAssert(aKeysEqual(emptyDict.codingPath, JSONKey.create(["emptyDict"])))
+                // XCTAssert(aKeysEqual(emptyArray.codingPath, JSONKey.create(["emptyArray"])))
+                XCTAssert(aKeysEqual(decoder.codingPath, []))
+            }
+        }
+        testRoundTrip(of: Dd.self, json: #"{"emptyDict": {}, "emptyArray": [], "dict": {"emptyNestedDict": {}, "emptyNestedArray": []}}"#)
+    }
+    
+    func testArrayDecodeNil() {
+        struct Aa: Equatable & Codable {
+            let a: [Int?]
+            init(from decoder: Decoder) throws {
+                var container = try decoder.unkeyedContainer()
+                let _ = try container.decodeNil()
+                self.a = [try container.decode(Int.self)]
+            }
+        }
+        
+        testRoundTrip(of: Aa.self, json: #"[1, 2]"#)
     }
 
     func testRecursiveDecoding() {
@@ -200,6 +320,79 @@ class ZippyJSONTests: XCTestCase {
             return TestCodingKey(stringValue: try! recursiveDecoder.decode(String.self, from: data))!
         })
     }
+    
+    func dateError(_ msg: String) -> DecodingError {
+        let path = [JSONKey(index: 0)]
+        let context = DecodingError.Context(codingPath: path, debugDescription: msg)
+        return DecodingError.dataCorrupted(context)
+    }
+    
+    func testSuperDecoder() {
+        struct Aa: Equatable, Codable {
+            let a: Int
+            init(from decoder: Decoder) throws {
+                var container = try decoder.unkeyedContainer()
+                let superDecoder = try container.superDecoder()
+                let superContainer = try superDecoder.singleValueContainer()
+                self.a = try superContainer.decode(Int.self)
+            }
+        }
+
+        testRoundTrip(of: Aa.self, json: "[2]")
+
+        struct Bb: Equatable, Codable {
+            let a: Int
+            init(from decoder: Decoder) throws {
+                var container = try decoder.container(keyedBy: JSONKey.self)
+                let superDecoder = try container.superDecoder()
+                var superContainer = try superDecoder.unkeyedContainer()
+                self.a = try superContainer.decode(Int.self)
+            }
+        }
+        
+        testRoundTrip(of: Bb.self, json: #"{"super": [2]}"#)
+        
+        struct Cc: Equatable, Codable {
+            let a: Int
+            init(from decoder: Decoder) throws {
+                var container = try decoder.container(keyedBy: JSONKey.self)
+                let superDecoder = try container.superDecoder(forKey: JSONKey(stringValue: "foo")!)
+                var superContainer = try superDecoder.unkeyedContainer()
+                self.a = try superContainer.decode(Int.self)
+            }
+        }
+
+        testRoundTrip(of: Cc.self, json: #"{"foo": [2]}"#)
+    }
+    
+    func testInvalidDates() {
+        /*let secondsError = dateError("Expected double/float but found Bool instead.")
+        testRoundTrip(of: [Date].self, json: "[23908742398047]", dateDecodingStrategy: .secondsSince1970)
+        _testFailure(of: [Date].self, json: "[false]", expectedError: secondsError, dateDecodingStrategy: .secondsSince1970)
+        
+        let millisError = dateError("Expected double/float but found Bool instead.")
+        testRoundTrip(of: [Date].self, json: "[23908742398047]", dateDecodingStrategy: .millisecondsSince1970)
+        _testFailure(of: [Date].self, json: "[false]", expectedError: millisError, dateDecodingStrategy: .millisecondsSince1970)*/
+
+        let error = dateError("Expected date string to be ISO8601-formatted.")
+
+        testRoundTrip(of: [Date].self, json: #"["2016-06-13T16:00:00+00:00"]"#, dateDecodingStrategy: .iso8601)
+        _testFailure(of: [Date].self, json: "[23908742398047]", expectedError: error, dateDecodingStrategy: .iso8601)
+        
+        testRoundTrip(of: [Date].self, json: #"["1992"]"#, dateDecodingStrategy: .custom({ _ -> Date in
+            return Date(timeIntervalSince1970: 0)
+        }))
+        _testFailure(of: [Date].self, json: "[23908742398047]", expectedError: error, dateDecodingStrategy: .custom({ _ -> Date in
+            throw error
+        }))
+        
+        let formatter = DateFormatter()
+        let formatterError = dateError("Date string does not match format expected by formatter.")
+        formatter.dateFormat = "yyyy"
+        testRoundTrip(of: [Date].self, json: #"["1992"]"#, dateDecodingStrategy: .formatted(formatter))
+        _testFailure(of: [Date].self, json: "[23423423]", expectedError: formatterError, dateDecodingStrategy: .formatted(formatter))
+    }
+    
 
   func testLesserUsedFunctions() {
     struct NestedArrayMember: Codable, Equatable {
@@ -394,6 +587,44 @@ class ZippyJSONTests: XCTestCase {
         }
 
         testRoundTrip(of: Test.self, json: #"{"b": 1, "c": 2}"#)
+    }
+    
+    func testSuppressWarnings() {
+        struct Aa: Decodable {
+            init(from decoder: Decoder) throws {
+                throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: ""))
+            }
+        }
+        XCTAssertThrowsError(try ZippyJSONDecoder().decode(Aa.self, from: "{5345893478957345903475890734}".data(using: .utf8)!))
+        testRoundTrip([UInt64.max])
+        ZippyJSONDecoder.zjd_suppressWarnings = true
+        testRoundTrip([UInt64.max])
+        ZippyJSONDecoder.zjd_suppressWarnings = false
+    }
+
+    func testDecimal() {
+        let decimals: [Decimal] = [1.2, 1]
+        testRoundTrip(decimals)
+        // NSDecimalNumber doesn't conform to Decodable
+        //let nsDecimals: [NSDecimalNumber] = [1.2, 1]
+        //testRoundTrip(nsDecimals)
+        
+        /*struct Aa: Equatable & Codable {
+            init(from decoder: Decoder) throws {
+                //let value = (decoder as! __JSONDecoder)
+                var outLength: Int32 = 0
+                let string = "{}"
+                string.withCString { (cString) -> Void in
+                    let context = JNTCreateContext(cString, UInt32(string.count), "".utf8CString, "".utf8CString, "".utf8CString)
+                    let value = JNTDocumentFromJSON(context, UnsafeRawPointer(cString), string.count, false, nil, true)
+                    JNTDocumentDecode__DecimalString(value, &outLength)
+                }
+            }
+        }*/
+        
+        //_testFailure(of: Aa.self, json: "{}", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Invalid Decimal")))
+        
+        _testFailure(of: [Decimal].self, json: "[true]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Invalid Decimal")))
     }
 
     func testNull() {
