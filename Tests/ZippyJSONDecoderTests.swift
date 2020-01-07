@@ -220,6 +220,10 @@ class ZippyJSONTests: XCTestCase {
         let error = DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Encountered Data is not valid Base64."))
         _testFailure(of: [Data].self, json: #"["😊"]"#, expectedError: error)
     }
+    
+    func testVeryNestedArray() {
+        testRoundTrip(of: [[[[[Int]]]]].self, json: #"[[[[[2]]]]]"#)
+    }
 
     func assertEqualsApple<T: Codable & Equatable>(data: Data, type: T.Type) {
         let testDecoder = ZippyJSONDecoder()
@@ -444,9 +448,9 @@ class ZippyJSONTests: XCTestCase {
         struct Test: Codable, Equatable {
             let a: Bool
         }
-        testRoundTrip(of: Test.self, json: #"{"a": true}"#)
-        testRoundTrip(of: TopLevelWrapper<Test>.self, json: #"{"value": {"a": true}}"#)
-        _testFailure(of: Test.self, json: #"{"b": true}"#, expectedError: DecodingError.keyNotFound(JSONKey(stringValue: "a")!, DecodingError.Context(codingPath: [], debugDescription: "No value associated with a.")))
+        //testRoundTrip(of: Test.self, json: #"{"a": true}"#)
+        //testRoundTrip(of: TopLevelWrapper<Test>.self, json: #"{"value": {"a": true}}"#)
+        //_testFailure(of: Test.self, json: #"{"b": true}"#, expectedError: DecodingError.keyNotFound(JSONKey(stringValue: "a")!, DecodingError.Context(codingPath: [], debugDescription: "No value associated with a.")))
         _testFailure(of: Test.self, json: #"{}"#, expectedError: DecodingError.keyNotFound(JSONKey(stringValue: "a")!, DecodingError.Context(codingPath: [], debugDescription: "No value associated with a.")))
         _testFailure(of: TopLevelWrapper<Test>.self, json: #"{"value": {}}"#, expectedError: DecodingError.keyNotFound(JSONKey(stringValue: "a")!, DecodingError.Context(codingPath: [], debugDescription: "No value associated with a.")))
         _testFailure(of: TopLevelWrapper<Test>.self, json: #"{"value": {"b": true}}"#, expectedError: DecodingError.keyNotFound(JSONKey(stringValue: "a")!, DecodingError.Context(codingPath: [JSONKey(stringValue: "value")!], debugDescription: "No value associated with a.")))
