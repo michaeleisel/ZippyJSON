@@ -2,7 +2,7 @@
 <% types.each do |type| %>
     <%= inline %>public func decode(_ type: <%= type %>.Type) throws -> <%= type %> {
         try ensureArrayIsNotAtEnd()
-        let decoded = decoder.unbox(currentValue, as: <%= type %>.self)
+        let decoded = try decoder.unbox(currentValue, as: <%= type %>.self)
         advanceArray()
         return decoded
     }
@@ -10,21 +10,17 @@
 <% end %>
 // UnboxBegin
 <% types.each do |type| %>
-    <%= inline %>fileprivate func unbox(_ value: Value, as type: <%= type %>.Type) -> <%= type %> {
+    <%= inline %>fileprivate func unbox(_ value: Value, as type: <%= type %>.Type) throws -> <%= type %> {
         let result = JNTDocumentDecode__<%= c_type(type) %>(value)
-<% if type == "String" %>
-        if result == nil {
-            return ""
-        }
-<% end %>
+        try throwErrorIfNecessary(value)
         return <%= convert(type) %>
     }
 
 <% end %>
 // SingleValueBegin
 <% types.each do |type| %>
-    public func decode(_ type: <%= type %>.Type) -> <%= type %> {
-        return unbox(containers.topContainer, as: <%= type %>.self)
+    public func decode(_ type: <%= type %>.Type) throws -> <%= type %> {
+        return try unbox(containers.topContainer, as: <%= type %>.self)
     }
 
 <% end %>
