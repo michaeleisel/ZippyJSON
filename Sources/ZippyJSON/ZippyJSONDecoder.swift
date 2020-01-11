@@ -566,10 +566,10 @@ final private class __JSONDecoder: Decoder {
                                                                         debugDescription: "Invalid URL string."))
              }
             return url
-        //} else if let nType = type as? DictionaryWithoutKeyConversion.Type {
-            //return try unbox(value, as: nType)
-        } else if let _ = dictionaryTypeCache.dummyForType(type) {
-            return try unbox(value, as: type as! DictionaryWithoutKeyConversion.Type)
+        } else if let nType = type as? DictionaryWithoutKeyConversion.Type {
+            return try unbox(value, as: nType)
+        // } else if let _ = dictionaryTypeCache.dummyForType(type) {
+            // return try unbox(value, as: type as! DictionaryWithoutKeyConversion.Type)
         } else if let dummy = arrayTypeCache.dummyForType(type) {
             return try dummy.create(value: value, decoder: self)
         } else {
@@ -1242,7 +1242,7 @@ extension Array: DummyCreatable where Element: Decodable {
         return []
     }
 }
-    
+
 extension Array: AnyArray where Element: Decodable {
     fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
         try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
