@@ -32,11 +32,11 @@ def convert(type)
 end
 
 def throws(type)
-  type == "T" ? "throws " : ""
+  "throws " # type == "T" ? "throws " : ""
 end
 
 def try(type)
-  type == "T" ? "try " : ""
+  "try " # type == "T" ? "try " : ""
 end
 
 Dir.chdir(__dir__)
