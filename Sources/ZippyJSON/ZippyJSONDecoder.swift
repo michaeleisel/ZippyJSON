@@ -691,7 +691,9 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     func decodeNil() throws -> Bool {
         try ensureArrayIsNotAtEnd()
         let isNil = JNTDocumentDecodeNil(currentValue)
-        advanceArray()
+        if isNil {
+            advanceArray()
+        }
         return isNil
     }
 
