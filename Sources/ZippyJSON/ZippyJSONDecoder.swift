@@ -347,6 +347,7 @@ final private class __JSONDecoder: Decoder {
     let nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy
     var swiftError: Error?
     var stringsForFloats: Bool
+    let arrayTypeCache = ArrayTypeCache()
 
     fileprivate var containers: JSONDecodingStorage
 
@@ -473,6 +474,8 @@ final private class __JSONDecoder: Decoder {
             return url
         } else if let stringKeyedDictType = type as? DictionaryWithoutKeyConversion.Type {
             return try unbox(value, as: stringKeyedDictType)
+        } else if let dummy = arrayTypeCache.dummyForType(type) {
+            return try dummy.create(value: value, decoder: self)
         } else {
             return try type.init(from: self)
         }
@@ -1020,3 +1023,89 @@ extension __JSONDecoder : SingleValueDecodingContainer {
 
     // End
 }
+
+fileprivate protocol AnyArray: DummyCreatable {
+    func create(value: Value, decoder: __JSONDecoder) throws -> Self
+}
+
+extension Array: DummyCreatable where Element: Decodable {
+    static func dummy() -> Self {
+        return []
+    }
+}
+
+extension Array: AnyArray where Element: Decodable {
+    fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
+        let array = try ContiguousArray<Element>().create(value: value, decoder: decoder)
+        return Array(array)
+    }
+}
+
+extension ContiguousArray: DummyCreatable where Element: Decodable {
+    static func dummy() -> Self {
+        return []
+    }
+}
+
+extension ContiguousArray: AnyArray where Element: Decodable {
+    fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
+        try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
+        var isEmpty = false
+        guard var currentValue = JNTDocumentEnterStructureAndReturnCopy(value, &isEmpty) else {
+            return []
+        }
+        defer { JNTReleaseValue(currentValue) }
+        if isEmpty {
+            return []
+        }
+        decoder.containers.push(container: currentValue)
+        defer { decoder.containers.popContainer() }
+        let count = JNTDocumentGetArrayCount(currentValue)
+
+        var array: ContiguousArray<Element> = ContiguousArray()
+        var isAtEnd = false
+        array.reserveCapacity(count)
+        if let innerDummy = decoder.arrayTypeCache.dummyForType(Element.self) {
+            for _ in 0..<count {
+                let element = try innerDummy.create(value: currentValue, decoder: decoder) as! Element
+                array.append(element)
+                JNTDocumentNextArrayElement(currentValue, &isAtEnd)
+            }
+        } else {
+            for _ in 0..<count {
+                let element = try decoder.unbox(currentValue, as: Element.self)
+                array.append(element)
+                JNTDocumentNextArrayElement(currentValue, &isAtEnd)
+            }
+        }
+        return array
+    }
+}
+
+protocol DummyCreatable {
+    static func dummy() -> Self
+}
+
+private class ArrayTypeCache {
+    private var typeIdToDummy: [ObjectIdentifier: AnyArray] = [:]
+    private var nonMatchingTypeIds = Set<ObjectIdentifier>()
+    fileprivate func dummyForType(_ type: Decodable.Type) -> AnyArray? {
+        let id = ObjectIdentifier(type)
+        if nonMatchingTypeIds.contains(id) {
+            return nil
+        }
+        if let dummy = typeIdToDummy[id] {
+            return dummy
+        }
+        if let casted = type as? AnyArray.Type {
+            //let dummyCreatable = casted as?
+            let dummy = casted.dummy()
+            typeIdToDummy[id] = dummy
+            return dummy
+        } else {
+            nonMatchingTypeIds.insert(id)
+            return nil
+        }
+    }
+}
+
