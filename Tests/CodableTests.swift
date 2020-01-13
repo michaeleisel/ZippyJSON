@@ -92,15 +92,6 @@ func expectRoundTripEqualityThroughJSON<T : Codable>(for value: T, lineNumber: I
 
 func expectRoundTripEqualityThroughPlist<T : Codable>(for value: T, lineNumber: Int) where T : Equatable {
     // no-op, just a remnant of an apple test
-    /*let encode = { (_ value: T) throws -> Data in
-        return try PropertyListEncoder().encode(value)
-    }
-
-    let decode = { (_ type: T.Type,_ data: Data) throws -> T in
-        return try PropertyListDecoder().decode(type, from: data)
-    }
-
-    expectRoundTripEquality(of: value, encode: encode, decode: decode, lineNumber: lineNumber)*/
 }
 
 // MARK: - Helper Types

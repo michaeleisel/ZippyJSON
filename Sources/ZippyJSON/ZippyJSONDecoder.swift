@@ -4,6 +4,15 @@ import Foundation
 import ZippyJSONCFamily
 import JJLISO8601DateFormatter
 
+#if canImport(Combine)
+import Combine
+
+@available(OSX 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+extension ZippyJSONDecoder: TopLevelDecoder {
+    public typealias Input = Data
+}
+#endif
+
 typealias Value = UnsafeMutablePointer<DecoderDummy>
 
 fileprivate var _iso8601Formatter: JJLISO8601DateFormatter = {
@@ -12,15 +21,8 @@ fileprivate var _iso8601Formatter: JJLISO8601DateFormatter = {
     return formatter
 }()
 
-internal protocol DictionaryWithoutKeyConversion: DummyCreatable {
+internal protocol DictionaryWithoutKeyConversion {
     static var elementType: Decodable.Type { get }
-}
-
-extension Dictionary: DummyCreatable where Key == String, Value: Decodable {
-    static func dummy() -> Dictionary<Key, Value> {
-        return [:]
-    }
-    
 }
 
 extension Dictionary : DictionaryWithoutKeyConversion where Key == String, Value: Decodable {
@@ -224,9 +226,6 @@ public final class ZippyJSONDecoder {
     }
 }
 
-fileprivate func swiftErrorFromValueError(_ value: DecoderPointer) -> Error {
-    return swiftErrorFromError(JNTGetContext(value))
-}
 fileprivate func swiftErrorFromError(_ context: ContextPointer) -> Error {
     var error: Error? = nil
     JNTProcessError(context) { (description, type, value, key) in
@@ -235,9 +234,9 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer) -> Error {
         let keyString = key.map { String(utf8String: $0) ?? "" } ?? ""
         let key = JSONKey(stringValue: keyString)!
         // If there was an actual key given, remove the last part of the path and let the DecodingError take care of adding the passed in key to the end
-        if key.stringValue != "" {
+        /*if key.stringValue != "" {
             let _ = path.popLast()
-        }
+        }*/
         let instanceType = Any.self
         switch type {
         case .wrongType:
@@ -340,29 +339,6 @@ private class ArrayTypeCache {
     }
 }
 
-private class DictionaryTypeCache {
-    private var typeIdToDummy: [ObjectIdentifier: DictionaryWithoutKeyConversion] = [:]
-    private var nonMatchingTypeIds = Set<ObjectIdentifier>()
-    fileprivate func dummyForType(_ type: Decodable.Type) -> DictionaryWithoutKeyConversion? {
-        let id = ObjectIdentifier(type)
-        if nonMatchingTypeIds.contains(id) {
-            return nil
-        }
-        if let dummy = typeIdToDummy[id] {
-            return dummy
-        }
-        if let casted = type as? DictionaryWithoutKeyConversion.Type {
-            //let dummyCreatable = casted as?
-            let dummy = casted.dummy()
-            typeIdToDummy[id] = dummy
-            return dummy
-        } else {
-            nonMatchingTypeIds.insert(id)
-            return nil
-        }
-    }
-}
-
 protocol AnyWrapper: class {
 }
 
@@ -413,7 +389,6 @@ final private class __JSONDecoder: Decoder {
     let nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy
     var swiftError: Error?
     var stringsForFloats: Bool
-    let dictionaryTypeCache = DictionaryTypeCache()
     let arrayTypeCache = ArrayTypeCache()
 
     fileprivate var containers: JSONDecodingStorage
@@ -469,7 +444,7 @@ final private class __JSONDecoder: Decoder {
             let number = try unbox(value, as: Int64.self)
             return Decimal(number)
         } else {
-            return nil
+            throw DecodingError.typeMismatch(Any.self, DecodingError.Context(codingPath: codingPath, debugDescription: "Expected to decode Decimal but found incorrect type instead"))
         }
     }
 
@@ -531,10 +506,6 @@ final private class __JSONDecoder: Decoder {
         }
     }
 
-    fileprivate func error(description: String) -> NSError {
-        return NSError(domain: "", code: 0, userInfo: [NSLocalizedDescriptionKey: description])
-    }
-
     fileprivate func unbox<T>(_ value: Value, as type: DictionaryWithoutKeyConversion.Type) throws -> T {
         var result = [String : Any]()
         var innerError: Error?
@@ -546,13 +517,14 @@ final private class __JSONDecoder: Decoder {
                 innerError = error
             }
         })
+        try throwErrorIfNecessary(value)
         if let innerError = innerError {
             throw innerError
         }
         if let resultCasted = result as? T {
             return resultCasted
         } else {
-            throw error(description: "Dictionary cast failed") // Cannot happen
+            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "Bad dictionary"))
         }
     }
 
@@ -702,41 +674,32 @@ extension __JSONDecoder {
     }
 }
 
-fileprivate struct JSONKey : CodingKey {
+struct JSONKey : CodingKey {
     public var stringValue: String
     public var intValue: Int?
 
-    public init?(stringValue: String) {
+    init?(stringValue: String) {
         self.stringValue = stringValue
         self.intValue = nil
     }
 
-    public init?(intValue: Int) {
+    init?(intValue: Int) {
         self.stringValue = "\(intValue)"
         self.intValue = intValue
     }
 
-    public init(stringValue: String, intValue: Int?) {
+    init(stringValue: String, intValue: Int?) {
         self.stringValue = stringValue
         self.intValue = intValue
     }
 
-    fileprivate init(index: Int) {
+    init(index: Int) {
         self.stringValue = "Index \(index)"
         self.intValue = index
     }
 
-    fileprivate static let `super` = JSONKey(stringValue: "super")!
+    static let `super` = JSONKey(stringValue: "super")!
 }
-
-fileprivate let keyPlaceholder: JSONKey = JSONKey(index: 0)
-
-/*private func arrayCodingPath(decoder: __JSONDecoder, currentValue: Value) -> [JSONKey] {
-    guard self.count != 0 else {
-        return decoder.codingPath
-    }
-    return computeCodingPath(value: currentValue)
-}*/
 
 private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var currentValue: Value
@@ -746,7 +709,11 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var isAtEnd: Bool
 
     var codingPath: [CodingKey] {
-        return computeCodingPath(value: currentValue, removeLastIfDictionary: false)
+        var path = computeCodingPath(value: currentValue, removeLastIfDictionary: false)
+        /*if self.count == 0 {
+            path.append(JSONKey(index: 0))
+        }*/
+        return path
     }
     
     deinit {
@@ -792,8 +759,14 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
     func ensureArrayIsNotAtEnd() throws {
         if isAtEnd {
+            var path = codingPath
+            if let count = count, count > 0 {
+                let _ = path.popLast()
+            }
+            path.append(JSONKey(index: currentIndex))
+            //}
             throw DecodingError.valueNotFound(Any.self,
-                                              DecodingError.Context(codingPath: codingPath,
+                                              DecodingError.Context(codingPath: path,
                                                                     debugDescription: "Cannot get next value -- unkeyed container is at end."))
         }
     }
@@ -1167,37 +1140,6 @@ extension __JSONDecoder : SingleValueDecodingContainer {
     // End
 }
 
-private final class ElementSequence<T: Decodable>: Sequence, IteratorProtocol {
-    typealias Element = T
-    private unowned(unsafe) let decoder: __JSONDecoder
-    private let count: Int
-    private let value: Value
-    fileprivate var i = 0
-    private var b = false
-    var error: Error? = nil
-
-    fileprivate init(decoder: __JSONDecoder, count: Int, value: Value) {
-        self.decoder = decoder
-        self.count = count
-        self.value = value
-    }
-    
-    func next() -> T? {
-        if i >= count {
-            return nil
-        }
-        do {
-            let element = try decoder.unbox(value, as: Element.self)
-            i += 1
-            JNTDocumentNextArrayElement(value, &b)
-            return element
-        } catch {
-            self.error = error
-        }
-        return nil
-    }
-}
-
 fileprivate protocol AnyArray: DummyCreatable {
     func create(value: Value, decoder: __JSONDecoder) throws -> Self
 }
@@ -1209,6 +1151,19 @@ extension Array: DummyCreatable where Element: Decodable {
 }
 
 extension Array: AnyArray where Element: Decodable {
+    fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
+        let array = try ContiguousArray<Element>().create(value: value, decoder: decoder)
+        return Array(array)
+    }
+}
+
+extension ContiguousArray: DummyCreatable where Element: Decodable {
+    static func dummy() -> Self {
+        return []
+    }
+}
+
+extension ContiguousArray: AnyArray where Element: Decodable {
     fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
         try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
         var isEmpty = false
@@ -1222,39 +1177,22 @@ extension Array: AnyArray where Element: Decodable {
         decoder.containers.push(container: currentValue)
         defer { decoder.containers.popContainer() }
         let count = JNTDocumentGetArrayCount(currentValue)
-        let array: [Element] = try Array(unsafeUninitializedCapacity: count) { (buffer, countToAssign) in
-            // We can't use subscript mutation with buffer because Swift requires buffer to be initialized anywhere we mutate it
-            // Instead, init from a lightweight sequence
-            //let sequence: ElementSequence<Element> = ElementSequence(decoder: decoder, count: count, value: currentValue)
-            //let _ = buffer.initialize(from: sequence)
-            memset(buffer.baseAddress, 0, count * MemoryLayout<Element>.stride)
-            var isAtEnd = false
-            if let innerDummy = decoder.arrayTypeCache.dummyForType(Element.self) {
-                for i in 0..<count {
-                    do {
-                        buffer[i] = try innerDummy.create(value: currentValue, decoder: decoder) as! Element
-                        JNTDocumentNextArrayElement(currentValue, &isAtEnd)
-                    } catch {
-                        countToAssign = i
-                        throw error
-                    }
-                }
-            } else {
-                for i in 0..<count {
-                    do {
-                        buffer[i] = try decoder.unbox(currentValue, as: Element.self)
-                        JNTDocumentNextArrayElement(currentValue, &isAtEnd)
-                    } catch {
-                        countToAssign = i
-                        throw error
-                    }
-                }
+
+        var array: ContiguousArray<Element> = ContiguousArray()
+        var isAtEnd = false
+        array.reserveCapacity(count)
+        if let innerDummy = decoder.arrayTypeCache.dummyForType(Element.self) {
+            for _ in 0..<count {
+                let element = try innerDummy.create(value: currentValue, decoder: decoder) as! Element
+                array.append(element)
+                JNTDocumentNextArrayElement(currentValue, &isAtEnd)
             }
-            countToAssign = count
-            /*countToAssign = sequence.i
-            if let error = sequence.error {
-                throw error
-            }*/
+        } else {
+            for _ in 0..<count {
+                let element = try decoder.unbox(currentValue, as: Element.self)
+                array.append(element)
+                JNTDocumentNextArrayElement(currentValue, &isAtEnd)
+            }
         }
         return array
     }
