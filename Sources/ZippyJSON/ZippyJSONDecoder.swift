@@ -249,8 +249,6 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer) -> Error {
             error = DecodingError.valueNotFound(instanceType, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
         case .jsonParsingFailed:
             error = DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: debugDescription))
-        case .wentPastEndOfArray:
-            error = DecodingError.valueNotFound(Any.self, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
         case .none:
             fallthrough
         @unknown default:
