@@ -4,6 +4,15 @@ import Foundation
 import ZippyJSONCFamily
 import JJLISO8601DateFormatter
 
+#if canImport(Combine)
+import Combine
+
+@available(OSX 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+extension ZippyJSONDecoder: TopLevelDecoder {
+    public typealias Input = Data
+}
+#endif
+
 typealias Value = UnsafeMutablePointer<DecoderDummy>
 
 @available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *)
