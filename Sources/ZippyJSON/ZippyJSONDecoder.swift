@@ -296,12 +296,49 @@ private func computeCodingPath(value: Value, removeLastIfDictionary: Bool = true
     return codingPath
 }
 
+// Wrapper and AnyWrapper allow for isKnownUniquelyReferenced to work
+private protocol AnyWrapper: class {
+}
+
+extension Wrapper: AnyWrapper {
+}
+
+final private class Wrapper<K: CodingKey> {
+    var decoder: JSONKeyedDecoder<K>
+    init(decoder: JSONKeyedDecoder<K>) {
+        self.decoder = decoder
+    }
+}
+
+final private class KeyedContainerPool {
+    var cache: [ObjectIdentifier: AnyWrapper] = [:]
+    
+    func reserveContainer<Key: CodingKey>(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws -> KeyedDecodingContainer<Key> {
+        let id = ObjectIdentifier(Key.self)
+        if let wrapper = cache[id] as? Wrapper<Key> {
+            if isKnownUniquelyReferenced(&wrapper.decoder) {
+                let innerDecoder = wrapper.decoder
+                JNTReleaseValue(innerDecoder.value)
+                (innerDecoder.value, innerDecoder.isEmpty) = try JSONKeyedDecoder<Key>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
+                return KeyedDecodingContainer(wrapper.decoder)
+            }
+        } else {
+            let decoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
+            cache[id] = Wrapper(decoder: decoder)
+            return KeyedDecodingContainer(decoder)
+        }
+        let decoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
+        return KeyedDecodingContainer(decoder)
+    }
+}
+
 final private class __JSONDecoder: Decoder {
     var errorType: Any.Type? = nil
     var userInfo: [CodingUserInfoKey : Any] = [:]
     var codingPath: [CodingKey] {
         return computeCodingPath(value: containers.topContainer)
     }
+    let keyedContainerPool = KeyedContainerPool()
     let value: Value
     let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
     let convertToCamel: Bool
@@ -334,7 +371,7 @@ final private class __JSONDecoder: Decoder {
     }
 
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
-        return try KeyedDecodingContainer(JSONKeyedDecoder(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
+        return try keyedContainerPool.reserveContainer(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel)
     }
 
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
@@ -540,7 +577,7 @@ extension __JSONDecoder {
         defer {
             containers.popContainer()
         }
-        return try KeyedDecodingContainer(JSONKeyedDecoder<NestedKey>(decoder: self, value: value, convertToCamel: convertToCamel))
+        return try keyedContainerPool.reserveContainer(decoder: self, value: value, convertToCamel: convertToCamel)
     }
 }
 
@@ -786,6 +823,12 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         if (convertToCamel && !isEmpty) {
             JNTConvertSnakeToCamel(innerValue)
         }
+        return (innerValue, isEmpty)
+    }
+
+    fileprivate init(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws {
+        try (self.value, self.isEmpty) = JSONKeyedDecoder<K>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
+        self.decoder = decoder
     }
 
     var allKeys: [Key] {
