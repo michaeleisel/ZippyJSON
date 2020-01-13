@@ -498,6 +498,8 @@ final private class __JSONDecoder: Decoder {
             return try unbox(value, as: Date.self)
         } else if type == Data.self || type == NSData.self {
             return try unbox(value, as: Data.self)
+        } else if type == Decimal.self || type == NSDecimalNumber.self {
+            return try unbox(value, as: Decimal.self)
         } else if type == URL.self || type == NSURL.self {
             let urlString = try unbox(value, as: String.self)
             guard let url = URL(string: urlString) else {
