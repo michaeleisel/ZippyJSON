@@ -15,7 +15,6 @@ extension ZippyJSONDecoder: TopLevelDecoder {
 
 typealias Value = UnsafeMutablePointer<DecoderDummy>
 
-@available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *)
 fileprivate var _iso8601Formatter: JJLISO8601DateFormatter = {
     let formatter = JJLISO8601DateFormatter()
     formatter.formatOptions = .withInternetDateTime
@@ -142,11 +141,7 @@ public final class ZippyJSONDecoder {
         case .deferredToDate:
             return Foundation.JSONDecoder.DateDecodingStrategy.deferredToDate
         case .iso8601:
-            if #available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *) {
-                return Foundation.JSONDecoder.DateDecodingStrategy.iso8601
-            } else {
-                fatalError("JJLISO8601DateFormatter is unavailable on this platform.")
-            }
+            return Foundation.JSONDecoder.DateDecodingStrategy.iso8601
         case .millisecondsSince1970:
             return Foundation.JSONDecoder.DateDecodingStrategy.millisecondsSince1970
         case .secondsSince1970:
@@ -208,7 +203,6 @@ public final class ZippyJSONDecoder {
         case deferredToDate
         case secondsSince1970
         case millisecondsSince1970
-        @available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *)
         case iso8601
         case formatted(DateFormatter)
         case custom((Decoder) throws -> Date)
@@ -367,15 +361,9 @@ final private class __JSONDecoder: Decoder {
             return Date(timeIntervalSince1970: double / 1000.0)
 
         case .iso8601:
-            if #available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *) {
-                let string = self.unbox(value, as: String.self)
-                guard let date = _iso8601Formatter.date(from: string) else {
-                    throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Expected date string to be ISO8601-formatted."))
-                }
-
-                return date
-            } else {
-                fatalError("JJLISO8601DateFormatter is unavailable on this platform.")
+            let string = try self.unbox(value, as: String.self)
+            guard let date = _iso8601Formatter.date(from: string) else {
+                throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Expected date string to be ISO8601-formatted."))
             }
 
         case .formatted(let formatter):
