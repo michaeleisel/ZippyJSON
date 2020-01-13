@@ -281,15 +281,19 @@ final private class JSONDecodingStorage {
     }
 }
 
-private func computeCodingPath(value: Value) -> [JSONKey] {
-    return JNTDocumentCodingPath(value).compactMap {
-        if let index = $0 as? NSNumber {
+private func computeCodingPath(value: Value, removeLastIfDictionary: Bool = true) -> [JSONKey] {
+    var codingPath = JNTDocumentCodingPath(value).compactMap { element -> JSONKey? in
+        if let index = element as? NSNumber {
             return JSONKey(index: index.intValue)
-        } else if let key = $0 as? NSString {
+        } else if let key = element as? NSString {
             return JSONKey(stringValue: String(key))
         }
         return nil // Wouldn't happen
     }
+    if removeLastIfDictionary, let last = codingPath.last, last.intValue == nil {
+        codingPath.removeLast()
+    }
+    return codingPath
 }
 
 final private class __JSONDecoder: Decoder {
@@ -614,15 +618,21 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
     func ensureArrayIsNotAtEnd() throws {
         if isAtEnd {
+            var path = codingPath
+            if let count = count, count > 0 {
+                let _ = path.popLast()
+            }
+            path.append(JSONKey(index: currentIndex))
+            //}
             throw DecodingError.valueNotFound(Any.self,
-                                              DecodingError.Context(codingPath: codingPath,
+                                              DecodingError.Context(codingPath: path,
                                                                     debugDescription: "Cannot get next value -- unkeyed container is at end."))
         }
     }
 
     func ensureValueIsArray(value: Value) throws {
         guard JNTDocumentValueIsArray(value) else {
-            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: codingPath, debugDescription: "Tried to unbox array, but it wasn't an array"))
+            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: computeCodingPath(value: value), debugDescription: "Tried to unbox array, but it wasn't an array"))
         }
     }
 
@@ -762,9 +772,9 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     
     var isEmpty: Bool
 
-    func ensureValueIsDictionary(value: Value) throws {
+    static func ensureValueIsDictionary(value: Value) throws {
         guard JNTDocumentValueIsDictionary(value) else {
-            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: codingPath, debugDescription: "Tried to unbox dictionary, but it wasn't a dictionary"))
+            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: [], debugDescription: "Tried to unbox dictionary, but it wasn't a dictionary"))
         }
     }
 
