@@ -673,6 +673,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     fileprivate init(decoder: __JSONDecoder, startingValue: Value) throws {
+        try JSONUnkeyedDecoder.ensureValueIsArray(value: startingValue)
         self.decoder = decoder
         self.currentIndex = 0
         var isEmpty = false
@@ -720,7 +721,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         }
     }
 
-    func ensureValueIsArray(value: Value) throws {
+    static func ensureValueIsArray(value: Value) throws {
         guard JNTDocumentValueIsArray(value) else {
             throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: computeCodingPath(value: value), debugDescription: "Tried to unbox array, but it wasn't an array"))
         }
