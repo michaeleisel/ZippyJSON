@@ -21,10 +21,6 @@ fileprivate var _iso8601Formatter: JJLISO8601DateFormatter = {
     return formatter
 }()
 
-internal protocol JSONStringDictionaryEncodableMarker { }
-
-extension Dictionary : JSONStringDictionaryEncodableMarker where Key == String, Value: Encodable { }
-
 internal protocol DictionaryWithoutKeyConversion {
     static var elementType: Decodable.Type { get }
 }
