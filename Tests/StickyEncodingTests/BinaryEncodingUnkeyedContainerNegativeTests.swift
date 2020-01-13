@@ -77,40 +77,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
     }
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Bool` value that is nil.
-    ///
-    func testDecodeBoolValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: Bool?
-            init(value: Bool?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: Bool
-            init(value: Bool) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(Bool.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Bool` value that is nil, or when there are no more values to decode.
     ///
     func testDecodeBoolValueNotFoundWhenNoMoreValues() {
@@ -241,40 +207,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
             func encode(to encoder: Encoder) throws {}
         }
         _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, Int.self, [], "Expected Int value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Int` value that is nil.
-    ///
-    func testDecodeIntValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: Int?
-            init(value: Int?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: Int
-            init(value: Int) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(Int.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
     }
 
     ///
@@ -411,40 +343,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
     }
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Int8` value that is nil.
-    ///
-    func testDecodeInt8ValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: Int8?
-            init(value: Int8?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: Int8
-            init(value: Int8) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(Int8.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Int8` value that is nil, or when there are no more values to decode.
     ///
     func testDecodeInt8ValueNotFoundWhenNoMoreValues() {
@@ -475,37 +373,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
             func encode(to encoder: Encoder) throws {}
         }
         _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, Int8.self, [], "Unkeyed container is at end."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Int8` value that was encoded as an `Bool` type when using a UnkeyedContainer.
-    ///
-    func testDecodeInt8TypeMismatchWhenValueNotConvertable() {
-
-        struct InputType: Codable {
-            var value: Bool
-            init(value: Bool) { self.value = value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer(); self.value = try container.decode(Bool.self)
-            }
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.unkeyedContainer(); try container.encode(self.value)
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: Int8
-            init(value: Int8) { self.value = value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer(); self.value = try container.decode(Int8.self)
-            }
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.unkeyedContainer(); try container.encode(self.value)
-            }
-        }
-        _testDecodeTypeMismatch(input: InputType(value: true), expected: (ExpectedType.self, Int8.self, [], "Expected to decode Int8 but found Bool instead."))
     }
 
     ///
@@ -575,40 +442,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
             func encode(to encoder: Encoder) throws {}
         }
         _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, Int16.self, [], "Expected Int16 value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Int16` value that is nil.
-    ///
-    func testDecodeInt16ValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: Int16?
-            init(value: Int16?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: Int16
-            init(value: Int16) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(Int16.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
     }
 
     ///
@@ -745,40 +578,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
     }
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Int32` value that is nil.
-    ///
-    func testDecodeInt32ValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: Int32?
-            init(value: Int32?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: Int32
-            init(value: Int32) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(Int32.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Int32` value that is nil, or when there are no more values to decode.
     ///
     func testDecodeInt32ValueNotFoundWhenNoMoreValues() {
@@ -909,40 +708,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
             func encode(to encoder: Encoder) throws {}
         }
         _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, Int64.self, [], "Expected Int64 value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Int64` value that is nil.
-    ///
-    func testDecodeInt64ValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: Int64?
-            init(value: Int64?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: Int64
-            init(value: Int64) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(Int64.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
     }
 
     ///
@@ -1079,40 +844,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
     }
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `UInt` value that is nil.
-    ///
-    func testDecodeUIntValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: UInt?
-            init(value: UInt?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: UInt
-            init(value: UInt) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(UInt.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `UInt` value that is nil, or when there are no more values to decode.
     ///
     func testDecodeUIntValueNotFoundWhenNoMoreValues() {
@@ -1243,40 +974,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
             func encode(to encoder: Encoder) throws {}
         }
         _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UInt8.self, [], "Expected UInt8 value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `UInt8` value that is nil.
-    ///
-    func testDecodeUInt8ValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: UInt8?
-            init(value: UInt8?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: UInt8
-            init(value: UInt8) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(UInt8.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
     }
 
     ///
@@ -1413,40 +1110,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
     }
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `UInt16` value that is nil.
-    ///
-    func testDecodeUInt16ValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: UInt16?
-            init(value: UInt16?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: UInt16
-            init(value: UInt16) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(UInt16.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `UInt16` value that is nil, or when there are no more values to decode.
     ///
     func testDecodeUInt16ValueNotFoundWhenNoMoreValues() {
@@ -1577,40 +1240,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
             func encode(to encoder: Encoder) throws {}
         }
         _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UInt32.self, [], "Expected UInt32 value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `UInt32` value that is nil.
-    ///
-    func testDecodeUInt32ValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: UInt32?
-            init(value: UInt32?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: UInt32
-            init(value: UInt32) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(UInt32.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
     }
 
     ///
@@ -1747,40 +1376,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
     }
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `UInt64` value that is nil.
-    ///
-    func testDecodeUInt64ValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: UInt64?
-            init(value: UInt64?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: UInt64
-            init(value: UInt64) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(UInt64.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `UInt64` value that is nil, or when there are no more values to decode.
     ///
     func testDecodeUInt64ValueNotFoundWhenNoMoreValues() {
@@ -1911,40 +1506,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
             func encode(to encoder: Encoder) throws {}
         }
         _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, Float.self, [], "Expected Float value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Float` value that is nil.
-    ///
-    func testDecodeFloatValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: Float?
-            init(value: Float?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: Float
-            init(value: Float) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(Float.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
     }
 
     ///
@@ -2081,40 +1642,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
     }
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Double` value that is nil.
-    ///
-    func testDecodeDoubleValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: Double?
-            init(value: Double?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: Double
-            init(value: Double) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(Double.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Double` value that is nil, or when there are no more values to decode.
     ///
     func testDecodeDoubleValueNotFoundWhenNoMoreValues() {
@@ -2248,40 +1775,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
     }
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `String` value that is nil.
-    ///
-    func testDecodeStringValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: String?
-            init(value: String?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: String
-            init(value: String) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(String.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `String` value that is nil, or when there are no more values to decode.
     ///
     func testDecodeStringValueNotFoundWhenNoMoreValues() {
@@ -2412,40 +1905,6 @@ class BinaryEncodingUnkeyedContainerNegativeTests: XCTestCase {
             func encode(to encoder: Encoder) throws {}
         }
         _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, CodableType.self, [], "Expected CodableType value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `CodableType` value that is nil.
-    ///
-    func testDecodeCodableTypeValueNotFoundWhenContainerIsNil() {
-
-        struct InputType: Codable {
-            var value: CodableType?
-            init(value: CodableType?) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws { self.value = nil }
-
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()  /// This will produce a container that nill can be inserted into directly
-                try container.encodeNil()
-            }
-        }
-
-        struct ExpectedType: Codable {
-            var value: CodableType
-            init(value: CodableType) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                var container = try decoder.unkeyedContainer()
-                self.value = try container.decode(CodableType.self)
-            }
-            func encode(to encoder: Encoder) throws {}
-        }
-        _testDecodeValueNotFound(input: InputType(value: nil), expected: (ExpectedType.self, UnkeyedDecodingContainer.self, [], "Expected UnkeyedDecodingContainer value but found null instead."))
     }
 
     ///

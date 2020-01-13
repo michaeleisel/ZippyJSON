@@ -1,6 +1,6 @@
 import XCTest
 import Foundation
-@testable import ZippyJSON
+import ZippyJSON
 
 var newParser: ZippyJSONDecoder {
     return ZippyJSONDecoder()
@@ -374,7 +374,7 @@ final class JSONTests: XCTestCase {
             let superAwesome: Bool
         }
 
-        for _ in 0..<100_000 {
+        for _ in 0..<1 {
             _ = try! newParser.decode(User.self, from: data)
         }
     }

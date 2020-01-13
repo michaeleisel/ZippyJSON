@@ -41,14 +41,7 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Bool` value that was not prevously encoded at the root-level.
     ///
     func testDecodeValueNotFoundOfBool() {
-        _testDecodeValueNotFound(input: Optional<Int>.none, expected: (Bool.self, Bool.self, [], "Expected Bool value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Bool` value that was encoded as an `Int` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfBool() {
-        _testDecodeTypeMismatch(input: Int(64), expected: (Bool.self, Bool.self, [], "Expected to decode Bool but found Int instead."))
+        _testDecodeValueNotFound(input: [Optional<Int>.none], expected: ([Bool].self, [Bool].self, [], "Expected Bool value but found null instead."))
     }
 
     ///
@@ -66,20 +59,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     // MARK: - `Int` Tests
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Int` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfInt() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (Int.self, Int.self, [], "Expected Int value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Int` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfInt() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (Int.self, Int.self, [], "Expected to decode Int but found Bool instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Int` value at the root-level and finds a container other than a SingleValueDecodingContainer.
     ///
     func testDecodeTypeMismatchOfIntWhenIncorrectContainerType() {
@@ -92,20 +71,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     }
 
     // MARK: - `Int8` Tests
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Int8` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfInt8() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (Int8.self, Int8.self, [], "Expected Int8 value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Int8` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfInt8() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (Int8.self, Int8.self, [], "Expected to decode Int8 but found Bool instead."))
-    }
 
     ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Int8` value at the root-level and finds a container other than a SingleValueDecodingContainer.
@@ -122,20 +87,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     // MARK: - `Int16` Tests
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Int16` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfInt16() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (Int16.self, Int16.self, [], "Expected Int16 value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Int16` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfInt16() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (Int16.self, Int16.self, [], "Expected to decode Int16 but found Bool instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Int16` value at the root-level and finds a container other than a SingleValueDecodingContainer.
     ///
     func testDecodeTypeMismatchOfInt16WhenIncorrectContainerType() {
@@ -148,20 +99,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     }
 
     // MARK: - `Int32` Tests
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Int32` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfInt32() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (Int32.self, Int32.self, [], "Expected Int32 value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Int32` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfInt32() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (Int32.self, Int32.self, [], "Expected to decode Int32 but found Bool instead."))
-    }
 
     ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Int32` value at the root-level and finds a container other than a SingleValueDecodingContainer.
@@ -178,20 +115,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     // MARK: - `Int64` Tests
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Int64` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfInt64() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (Int64.self, Int64.self, [], "Expected Int64 value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Int64` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfInt64() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (Int64.self, Int64.self, [], "Expected to decode Int64 but found Bool instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Int64` value at the root-level and finds a container other than a SingleValueDecodingContainer.
     ///
     func testDecodeTypeMismatchOfInt64WhenIncorrectContainerType() {
@@ -204,20 +127,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     }
 
     // MARK: - `UInt` Tests
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `UInt` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfUInt() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (UInt.self, UInt.self, [], "Expected UInt value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `UInt` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfUInt() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (UInt.self, UInt.self, [], "Expected to decode UInt but found Bool instead."))
-    }
 
     ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `UInt` value at the root-level and finds a container other than a SingleValueDecodingContainer.
@@ -234,20 +143,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     // MARK: - `UInt8` Tests
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `UInt8` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfUInt8() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (UInt8.self, UInt8.self, [], "Expected UInt8 value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `UInt8` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfUInt8() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (UInt8.self, UInt8.self, [], "Expected to decode UInt8 but found Bool instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `UInt8` value at the root-level and finds a container other than a SingleValueDecodingContainer.
     ///
     func testDecodeTypeMismatchOfUInt8WhenIncorrectContainerType() {
@@ -260,20 +155,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     }
 
     // MARK: - `UInt16` Tests
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `UInt16` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfUInt16() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (UInt16.self, UInt16.self, [], "Expected UInt16 value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `UInt16` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfUInt16() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (UInt16.self, UInt16.self, [], "Expected to decode UInt16 but found Bool instead."))
-    }
 
     ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `UInt16` value at the root-level and finds a container other than a SingleValueDecodingContainer.
@@ -290,20 +171,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     // MARK: - `UInt32` Tests
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `UInt32` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfUInt32() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (UInt32.self, UInt32.self, [], "Expected UInt32 value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `UInt32` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfUInt32() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (UInt32.self, UInt32.self, [], "Expected to decode UInt32 but found Bool instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `UInt32` value at the root-level and finds a container other than a SingleValueDecodingContainer.
     ///
     func testDecodeTypeMismatchOfUInt32WhenIncorrectContainerType() {
@@ -316,20 +183,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     }
 
     // MARK: - `UInt64` Tests
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `UInt64` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfUInt64() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (UInt64.self, UInt64.self, [], "Expected UInt64 value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `UInt64` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfUInt64() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (UInt64.self, UInt64.self, [], "Expected to decode UInt64 but found Bool instead."))
-    }
 
     ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `UInt64` value at the root-level and finds a container other than a SingleValueDecodingContainer.
@@ -346,20 +199,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     // MARK: - `Float` Tests
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Float` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfFloat() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (Float.self, Float.self, [], "Expected Float value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Float` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfFloat() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (Float.self, Float.self, [], "Expected to decode Float but found Bool instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Float` value at the root-level and finds a container other than a SingleValueDecodingContainer.
     ///
     func testDecodeTypeMismatchOfFloatWhenIncorrectContainerType() {
@@ -374,20 +213,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     // MARK: - `Double` Tests
 
     ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `Double` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfDouble() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (Double.self, Double.self, [], "Expected Double value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Double` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfDouble() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (Double.self, Double.self, [], "Expected to decode Double but found Bool instead."))
-    }
-
-    ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `Double` value at the root-level and finds a container other than a SingleValueDecodingContainer.
     ///
     func testDecodeTypeMismatchOfDoubleWhenIncorrectContainerType() {
@@ -400,20 +225,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     }
 
     // MARK: - `String` Tests
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `String` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfString() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (String.self, String.self, [], "Expected String value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `String` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfString() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (String.self, String.self, [], "Expected to decode String but found Bool instead."))
-    }
 
     ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `String` value at the root-level and finds a container other than a SingleValueDecodingContainer.
@@ -432,20 +243,6 @@ class BinaryEncodingSingleValueContainerNegativeTests: XCTestCase {
     ///
     /// Note: Currently codable types using a SingleValueDecodingContainer have different error messages and type that single values because of the nature of the encoding.
     ///
-
-    ///
-    /// Test that a `DecodingError.valueNotFound` is thrown when a user tries to decode a `CodableType` value that was not prevously encoded at the root-level.
-    ///
-    func testDecodeValueNotFoundOfCodableType() {
-        _testDecodeValueNotFound(input: Optional<Bool>.none, expected: (CodableType.self, KeyedDecodingContainer<CodableType.CodingKeys>.self, [], "Expected KeyedDecodingContainer<CodingKeys> value but found null instead."))
-    }
-
-    ///
-    /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `CodableType` value that was encoded as an `Bool` type when decoding a root-level value.
-    ///
-    func testDecodeTypeMismatchOfCodableType() {
-        _testDecodeTypeMismatch(input: Bool(true), expected: (CodableType.self, KeyedDecodingContainer<CodableType.CodingKeys>.self, [], "Expected to decode KeyedDecodingContainer<CodingKeys> but found SingleValueDecodingContainer instead."))
-    }
 
     ///
     /// Test that a `DecodingError.typeMismatch` is thrown when a user tries to decode a `CodableType` value at the root-level and finds a container other that a SingleValueDecodingContainer.

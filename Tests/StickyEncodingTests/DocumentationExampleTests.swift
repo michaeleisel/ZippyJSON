@@ -26,20 +26,6 @@ class DocumentationExampleTests: XCTestCase {
     let encoder = JSONEncoder()
     let decoder = ZippyJSONDecoder()
 
-    /// Documentation Examples
-    ///
-    /// These test should represent the documentations examples exactly
-    /// with no XCTAsserts added.  These tests are to make sure that the
-    /// examples compile and run.
-    ///
-
-    func testBinaryEncoderExample1() throws {
-
-        let string = "You can encode single values of any type."
-
-        let _ = try encoder.encode(string)
-    }
-
     func testBinaryEncoderExample2() throws {
 
         /// Actual code in example.

@@ -113,43 +113,4 @@ class BinaryDecoderNegativeTests: XCTestCase {
         }
         _testDecodeTypeMismatch(input: InputType(value: "Test String"), expected: (type: ExpectedType.self, errorType: String.self, codingPath: [], description: "Expected to decode String but found KeyedDecodingContainer<CodingKeys> instead."))
     }
-
-    ///
-    /// Test the ability to rethrow an error occurring in the user's code during decoding.
-    ///
-    func testDecodeWithUserObjectThrowing() throws {
-
-        enum Error: Swift.Error { case testError(String) }
-
-        struct InputType: Codable {
-            var value: Int
-            init(value: Int) { self.value = value }
-
-            enum CodingKeys: CodingKey { case value }
-
-            init(from decoder: Decoder) throws {
-                throw Error.testError("Test Error")
-            }
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.singleValueContainer()
-                try container.encode(self.value)
-            }
-        }
-
-        let encoder = JSONEncoder()
-        let decoder = ZippyJSONDecoder()
-
-        let bytes = try encoder.encode(InputType(value: 10))
-
-        XCTAssertThrowsError(try decoder.decode(InputType.self, from: bytes)) { (error) in
-            switch error {
-            case Error.testError(let message):
-                XCTAssertEqual(message, "Test Error")
-
-            default: XCTFail("Incorrect error returned: \(error)")
-            }
-        }
-    }
 }
-
-

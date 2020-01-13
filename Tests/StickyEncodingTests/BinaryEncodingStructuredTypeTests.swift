@@ -19,7 +19,7 @@
 ///
 import XCTest
 
-@testable import ZippyJSON
+import ZippyJSON
 
 ///
 /// Tests relating to both `BinaryEncoder` and `BinaryDecoder` encoding structured types Array's, Dictionaries, and custom types.
