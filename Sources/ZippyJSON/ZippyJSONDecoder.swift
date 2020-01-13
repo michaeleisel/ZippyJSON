@@ -233,10 +233,6 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer) -> Error {
         var path = value.map { computeCodingPath(value: $0) } ?? []
         let keyString = key.map { String(utf8String: $0) ?? "" } ?? ""
         let key = JSONKey(stringValue: keyString)!
-        // If there was an actual key given, remove the last part of the path and let the DecodingError take care of adding the passed in key to the end
-        if key.stringValue != "" {
-            let _ = path.popLast()
-        }
         let instanceType = Any.self
         switch type {
         case .wrongType:
@@ -310,7 +306,6 @@ final private class __JSONDecoder: Decoder {
     let nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy
     var swiftError: Error?
     var stringsForFloats: Bool
-    let emptyDictionaryDecoder: Value
 
     fileprivate var containers: JSONDecodingStorage
 
@@ -332,7 +327,6 @@ final private class __JSONDecoder: Decoder {
         case .throw:
             stringsForFloats = false
         }
-        self.emptyDictionaryDecoder = JNTEmptyDictionaryDecoder(value)
     }
 
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
@@ -573,8 +567,6 @@ fileprivate struct JSONKey : CodingKey {
     fileprivate static let `super` = JSONKey(stringValue: "super")!
 }
 
-fileprivate let keyPlaceholder: JSONKey = JSONKey(index: 0)
-
 private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var currentValue: Value
     var count: Int?
@@ -583,25 +575,22 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var isAtEnd: Bool
 
     var codingPath: [CodingKey] {
-        guard self.count != 0 else {
-            return decoder.codingPath
-        }
-        return computeCodingPath(value: currentValue)
+        return computeCodingPath(value: currentValue, removeLastIfDictionary: false)
     }
 
     fileprivate init(decoder: __JSONDecoder, startingValue: Value) throws {
         self.decoder = decoder
         self.currentIndex = 0
-        if let currentValue = JNTDocumentEnterStructureAndReturnCopy(startingValue) {
-            self.currentValue = currentValue
-            self.isAtEnd = false
-            self.count = nil // is this slow?
-        } else {
-            self.currentValue = startingValue
+        var isEmpty = false
+        let currentValue = JNTDocumentEnterStructureAndReturnCopy(startingValue, &isEmpty)!
+        if isEmpty {
             self.isAtEnd = true
             self.count = 0
+        } else {
+            self.isAtEnd = false
+            self.count = JNTDocumentGetArrayCount(currentValue)
         }
-        try ensureValueIsArray(value: startingValue)
+        self.currentValue = currentValue
     }
 
     func decodeNil() throws -> Bool {
@@ -762,19 +751,16 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
 private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
     var codingPath: [CodingKey] {
-        guard value != decoder.emptyDictionaryDecoder else {
-            return decoder.codingPath
-        }
-        return computeCodingPath(value: value)
+        return computeCodingPath(value: value, removeLastIfDictionary: !isEmpty)
     }
 
     unowned(unsafe) private let decoder: __JSONDecoder
 
-    var currentIndex: Int = 0
-
     typealias Key = K
 
     var value: Value
+    
+    var isEmpty: Bool
 
     func ensureValueIsDictionary(value: Value) throws {
         guard JNTDocumentValueIsDictionary(value) else {
@@ -782,32 +768,28 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         }
     }
 
-    fileprivate init(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws {
-        if let innerValue = JNTDocumentEnterStructureAndReturnCopy(value) {
-            self.value = innerValue
-        } else {
-            self.value = decoder.emptyDictionaryDecoder
-        }
-        self.decoder = decoder
-        // todo: fix bug where the keys get converted and then used to create a dictionary later
-        if (convertToCamel) {
-            JNTConvertSnakeToCamel(self.value)
-        }
+    fileprivate static func setupValue(_ value: Value, decoder: __JSONDecoder, convertToCamel: Bool) throws -> (Value, Bool) {
         try ensureValueIsDictionary(value: value)
+        var isEmpty = false
+        let innerValue = JNTDocumentEnterStructureAndReturnCopy(value, &isEmpty)!
+        // todo: fix bug where the keys get converted and then used to create a dictionary later
+        if (convertToCamel && !isEmpty) {
+            JNTConvertSnakeToCamel(innerValue)
+        }
     }
 
     var allKeys: [Key] {
-        return JNTDocumentAllKeys(value).compactMap { Key(stringValue: $0) }
+        return JNTDocumentAllKeys(value, isEmpty).compactMap { Key(stringValue: $0) }
     }
 
     func contains(_ key: K) -> Bool {
         return key.stringValue.withCString { pointer in
-            return JNTDocumentContains(value, pointer)
+            return JNTDocumentContains(value, pointer, isEmpty)
         }
     }
 
     private func fetchValue(keyPointer: UnsafePointer<Int8>) -> Value {
-        return JNTDocumentFetchValue(value, keyPointer)
+        return JNTDocumentFetchValue(value, keyPointer, isEmpty)
     }
 
     func decodeNil(forKey key: K) throws -> Bool {
