@@ -667,6 +667,10 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var codingPath: [CodingKey] {
         return computeCodingPath(value: currentValue, removeLastIfDictionary: false)
     }
+    
+    deinit {
+        JNTReleaseValue(currentValue);
+    }
 
     fileprivate init(decoder: __JSONDecoder, startingValue: Value) throws {
         self.decoder = decoder
@@ -866,6 +870,10 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     var value: Value
     
     var isEmpty: Bool
+    
+    deinit {
+        JNTReleaseValue(value)
+    }
 
     static func ensureValueIsDictionary(value: Value) throws {
         guard JNTDocumentValueIsDictionary(value) else {
