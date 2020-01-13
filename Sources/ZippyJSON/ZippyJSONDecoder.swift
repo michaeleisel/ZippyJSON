@@ -52,18 +52,18 @@ public final class ZippyJSONDecoder {
         }
     }
 
-    private func createContext() -> ContextPointer {
+    private func createContext(string: UnsafePointer<Int8>, length: Int) -> ContextPointer {
         switch nonConformingFloatDecodingStrategy {
         case .convertFromString(let pI, let nI, let nan):
             return pI.withCString { pIP in
                 nI.withCString { nIP in
                     nan.withCString { nanP in
-                        return JNTCreateContext(nIP, pIP, nanP)
+                        return JNTCreateContext(string, UInt32(length), nIP, pIP, nanP)
                     }
                 }
             }
         case .throw:
-            return JNTCreateContext("", "", "")
+            return JNTCreateContext(string, UInt32(length), "", "", "")
         }
     }
 
@@ -76,7 +76,8 @@ public final class ZippyJSONDecoder {
         }
         return try data.withUnsafeBytes { (bytes) -> T in
             var retryReason: UnsafePointer<CChar>? = nil
-            let context = createContext()
+            let string = bytes.baseAddress?.assumingMemoryBound(to: Int8.self)
+            let context = createContext(string: string!, length: data.count)
             defer {
                 JNTReleaseContext(context)
             }
