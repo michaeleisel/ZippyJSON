@@ -41,6 +41,53 @@ public final class ZippyJSONDecoder {
     public var zjd_fullPrecisionFloatParsing = true
     
     private static var _zjd_suppressWarnings: Bool = false
+    public var userInfo: [CodingUserInfoKey : Any] = [:]
+    
+    public var nonConformingFloatDecodingStrategy: NonConformingFloatDecodingStrategy
+    
+    public enum NonConformingFloatDecodingStrategy {
+        case `throw`
+        case convertFromString(positiveInfinity: String, negativeInfinity: String, nan: String)
+    }
+    
+    public var dataDecodingStrategy: DataDecodingStrategy
+    
+    public enum DataDecodingStrategy {
+        case deferredToData
+        case base64
+        case custom((Decoder) throws -> Data)
+    }
+    
+    public enum KeyDecodingStrategy {
+        case useDefaultKeys
+        case convertFromSnakeCase
+        case custom(([CodingKey]) -> CodingKey)
+    }
+    
+    public var keyDecodingStrategy: KeyDecodingStrategy
+    
+    public enum DateDecodingStrategy {
+        case deferredToDate
+        case secondsSince1970
+        case millisecondsSince1970
+        case iso8601
+        case formatted(DateFormatter)
+        case custom((Decoder) throws -> Date)
+    }
+    
+    public var dateDecodingStrategy: DateDecodingStrategy
+    
+    var convertCase: Bool {
+        get {
+            switch keyDecodingStrategy {
+            case .convertFromSnakeCase:
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
     public static var zjd_suppressWarnings: Bool {
         get {
             return _zjd_suppressWarnings
@@ -171,53 +218,6 @@ public final class ZippyJSONDecoder {
     }
 
 
-    public var userInfo: [CodingUserInfoKey : Any] = [:]
-
-    public var nonConformingFloatDecodingStrategy: NonConformingFloatDecodingStrategy
-
-    public enum NonConformingFloatDecodingStrategy {
-        case `throw`
-        case convertFromString(positiveInfinity: String, negativeInfinity: String, nan: String)
-    }
-
-    public var dataDecodingStrategy: DataDecodingStrategy
-
-    public enum DataDecodingStrategy {
-        case deferredToData
-        case base64
-        case custom((Decoder) throws -> Data)
-    }
-
-    public enum KeyDecodingStrategy {
-        case useDefaultKeys
-        case convertFromSnakeCase
-        case custom(([CodingKey]) -> CodingKey)
-    }
-
-    public var keyDecodingStrategy: KeyDecodingStrategy
-
-    public enum DateDecodingStrategy {
-        case deferredToDate
-        case secondsSince1970
-        case millisecondsSince1970
-        case iso8601
-        case formatted(DateFormatter)
-        case custom((Decoder) throws -> Date)
-    }
-
-    public var dateDecodingStrategy: DateDecodingStrategy
-
-    var convertCase: Bool {
-        get {
-            switch keyDecodingStrategy {
-            case .convertFromSnakeCase:
-                return true
-            default:
-                return false
-            }
-        }
-    }
-
     public init() {
         keyDecodingStrategy = .useDefaultKeys
         dataDecodingStrategy = .base64
@@ -310,46 +310,24 @@ final private class Wrapper<K: CodingKey> {
     }
 }
 
-final private class KeyedContainerPool {
-    var cache: [ObjectIdentifier: AnyWrapper] = [:]
-    
-    func reserveContainer<Key: CodingKey>(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws -> KeyedDecodingContainer<Key> {
-        let id = ObjectIdentifier(Key.self)
-        if let wrapper = cache[id] as? Wrapper<Key> {
-            if isKnownUniquelyReferenced(&wrapper.decoder) {
-                let innerDecoder = wrapper.decoder
-                JNTReleaseValue(innerDecoder.value)
-                (innerDecoder.value, innerDecoder.isEmpty) = try JSONKeyedDecoder<Key>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
-                return KeyedDecodingContainer(wrapper.decoder)
-            }
-        } else {
-            let decoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
-            cache[id] = Wrapper(decoder: decoder)
-            return KeyedDecodingContainer(decoder)
-        }
-        let decoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
-        return KeyedDecodingContainer(decoder)
-    }
-}
-
 final private class __JSONDecoder: Decoder {
-    var errorType: Any.Type? = nil
-    var userInfo: [CodingUserInfoKey : Any] = [:]
-    var codingPath: [CodingKey] {
-        return computeCodingPath(value: containers.topContainer)
-    }
-    let keyedContainerPool = KeyedContainerPool()
     let value: Value
     let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
     let convertToCamel: Bool
     let dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy
     let dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy
     let nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy
-    var swiftError: Error?
     var stringsForFloats: Bool
     let arrayTypeCache = ArrayTypeCache()
 
     fileprivate var containers: JSONDecodingStorage
+
+    var userInfo: [CodingUserInfoKey : Any] {
+        return [:]
+    }
+    var codingPath: [CodingKey] {
+        return computeCodingPath(value: containers.topContainer)
+    }
 
     init(value: Value, containers: JSONDecodingStorage, keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy, dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy, dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy, nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy) {
         self.value = value
@@ -376,7 +354,7 @@ final private class __JSONDecoder: Decoder {
     }
     
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
-        return try keyedContainerPool.reserveContainer(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel)
+        return try KeyedDecodingContainer<Key>(JSONKeyedDecoder<Key>(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
     }
     
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
@@ -626,7 +604,7 @@ extension __JSONDecoder {
         defer {
             containers.popContainer()
         }
-        return try keyedContainerPool.reserveContainer(decoder: self, value: value, convertToCamel: convertToCamel)
+        return try KeyedDecodingContainer(JSONKeyedDecoder<NestedKey>(decoder: self, value: value, convertToCamel: convertToCamel))
     }
 }
 
@@ -657,7 +635,7 @@ struct JSONKey : CodingKey {
     static let `super` = JSONKey(stringValue: "super")!
 }
 
-private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
+private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var currentValue: Value
     var count: Int?
     private unowned(unsafe) let decoder: __JSONDecoder
@@ -668,10 +646,6 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         return computeCodingPath(value: currentValue, removeLastIfDictionary: false)
     }
     
-    deinit {
-        JNTReleaseValue(currentValue);
-    }
-
     fileprivate init(decoder: __JSONDecoder, startingValue: Value) throws {
         try JSONUnkeyedDecoder.ensureValueIsArray(value: startingValue)
         self.decoder = decoder
@@ -688,7 +662,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         self.currentValue = currentValue
     }
 
-    func decodeNil() throws -> Bool {
+    mutating func decodeNil() throws -> Bool {
         try ensureArrayIsNotAtEnd()
         let isNil = JNTDocumentDecodeNil(currentValue)
         if isNil {
@@ -697,14 +671,14 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         return isNil
     }
 
-    func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
+    mutating func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: T.self)
         advanceArray()
         return decoded
     }
 
-    func advanceArray() {
+    mutating func advanceArray() {
         JNTDocumentNextArrayElement(currentValue, &isAtEnd)
         currentIndex += 1
     }
@@ -729,21 +703,21 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         }
     }
 
-    public func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> {
+    mutating public func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> {
         try ensureArrayIsNotAtEnd()
         let container = try decoder.unboxNestedContainer(value: currentValue, keyedBy: type)
         advanceArray()
         return container
     }
 
-    func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
+    mutating func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
         try ensureArrayIsNotAtEnd()
         let container = try decoder.unboxNestedUnkeyedContainer(value: currentValue)
         advanceArray()
         return container
     }
 
-    func superDecoder() throws -> Decoder {
+    mutating func superDecoder() throws -> Decoder {
         try ensureArrayIsNotAtEnd()
         let container = decoder.unboxSuper(currentValue)
         advanceArray()
@@ -751,98 +725,98 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     // UnkeyedBegin
-    public func decode(_ type: UInt8.Type) throws -> UInt8 {
+    mutating public func decode(_ type: UInt8.Type) throws -> UInt8 {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: UInt8.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: UInt16.Type) throws -> UInt16 {
+    mutating public func decode(_ type: UInt16.Type) throws -> UInt16 {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: UInt16.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: UInt32.Type) throws -> UInt32 {
+    mutating public func decode(_ type: UInt32.Type) throws -> UInt32 {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: UInt32.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: UInt64.Type) throws -> UInt64 {
+    mutating public func decode(_ type: UInt64.Type) throws -> UInt64 {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: UInt64.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Int8.Type) throws -> Int8 {
+    mutating public func decode(_ type: Int8.Type) throws -> Int8 {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: Int8.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Int16.Type) throws -> Int16 {
+    mutating public func decode(_ type: Int16.Type) throws -> Int16 {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: Int16.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Int32.Type) throws -> Int32 {
+    mutating public func decode(_ type: Int32.Type) throws -> Int32 {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: Int32.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Int64.Type) throws -> Int64 {
+    mutating public func decode(_ type: Int64.Type) throws -> Int64 {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: Int64.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Bool.Type) throws -> Bool {
+    mutating public func decode(_ type: Bool.Type) throws -> Bool {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: Bool.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: String.Type) throws -> String {
+    mutating public func decode(_ type: String.Type) throws -> String {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: String.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Double.Type) throws -> Double {
+    mutating public func decode(_ type: Double.Type) throws -> Double {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: Double.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Float.Type) throws -> Float {
+    mutating public func decode(_ type: Float.Type) throws -> Float {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: Float.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Int.Type) throws -> Int {
+    mutating public func decode(_ type: Int.Type) throws -> Int {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: Int.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: UInt.Type) throws -> UInt {
+    mutating public func decode(_ type: UInt.Type) throws -> UInt {
         try ensureArrayIsNotAtEnd()
         let decoded = try decoder.unbox(currentValue, as: UInt.self)
         advanceArray()
@@ -861,7 +835,7 @@ private func throwErrorIfNecessary(_ value: Value) throws {
     }
 }
 
-private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
+private struct JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
     var codingPath: [CodingKey] {
         return computeCodingPath(value: value, removeLastIfDictionary: !isEmpty)
     }
@@ -874,10 +848,6 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     
     var isEmpty: Bool
     
-    deinit {
-        JNTReleaseValue(value)
-    }
-
     static func ensureValueIsDictionary(value: Value) throws {
         guard JNTDocumentValueIsDictionary(value) else {
             throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: [], debugDescription: "Tried to unbox dictionary, but it wasn't a dictionary"))
@@ -1122,7 +1092,7 @@ extension ContiguousArray: AnyArray where Element: Decodable {
         guard var currentValue = JNTDocumentEnterStructureAndReturnCopy(value, &isEmpty) else {
             return []
         }
-        defer { JNTReleaseValue(currentValue) }
+        // defer { JNTReleaseValue(currentValue) }
         if isEmpty {
             return []
         }
