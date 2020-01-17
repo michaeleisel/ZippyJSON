@@ -254,15 +254,15 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer) -> Error {
     return error ?? NSError(domain: "", code: 0, userInfo: [:])
 }
 
-final private class JSONDecodingStorage {
+private struct JSONDecodingStorage {
     private(set) fileprivate var containers = ContiguousArray<Value>()
 
     fileprivate init() {
         containers.reserveCapacity(30)
     }
 
-    fileprivate func createCopy() -> JSONDecodingStorage {
-        let copy = JSONDecodingStorage()
+    fileprivate mutating func createCopy() -> JSONDecodingStorage {
+        var copy = JSONDecodingStorage()
         copy.containers = containers
         return copy
     }
@@ -272,11 +272,11 @@ final private class JSONDecodingStorage {
         return self.containers.last!
     }
 
-    fileprivate func push(container: Value) {
+    fileprivate mutating func push(container: Value) {
         self.containers.append(container)
     }
 
-    fileprivate func popContainer() {
+    fileprivate mutating func popContainer() {
         precondition(!self.containers.isEmpty, "Empty container stack.")
         self.containers.removeLast()
     }
@@ -297,20 +297,6 @@ private func computeCodingPath(value: Value, removeLastIfDictionary: Bool = true
     return codingPath
 }
 
-// Wrapper and AnyWrapper allow for isKnownUniquelyReferenced to work
-private protocol AnyWrapper: class {
-}
-
-extension Wrapper: AnyWrapper {
-}
-
-final private class Wrapper<K: CodingKey> {
-    var decoder: JSONKeyedDecoder<K>
-    init(decoder: JSONKeyedDecoder<K>) {
-        self.decoder = decoder
-    }
-}
-
 final private class __JSONDecoder: Decoder {
     let value: Value
     let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
@@ -319,7 +305,7 @@ final private class __JSONDecoder: Decoder {
     let dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy
     let nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy
     var stringsForFloats: Bool
-    let arrayTypeCache = ArrayTypeCache()
+    var arrayTypeCache = ArrayTypeCache()
 
     fileprivate var containers: JSONDecodingStorage
 
@@ -639,7 +625,7 @@ struct JSONKey : CodingKey {
 private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var currentValue: Value
     var count: Int?
-    private unowned(unsafe) let decoder: __JSONDecoder
+    private let decoder: __JSONDecoder
     var currentIndex: Int
     var isAtEnd: Bool
 
@@ -837,7 +823,7 @@ private func throwErrorIfNecessary(_ value: Value) throws {
 }
 
 private struct JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
-    unowned(unsafe) private let decoder: __JSONDecoder
+    private let decoder: __JSONDecoder
 
     typealias Key = K
 
@@ -1125,10 +1111,10 @@ protocol DummyCreatable {
     static func dummy() -> Self
 }
 
-final private class ArrayTypeCache {
+private struct ArrayTypeCache {
     private var typeIdToDummy: [ObjectIdentifier: AnyArray] = [:]
     private var nonMatchingTypeIds = Set<ObjectIdentifier>()
-    fileprivate func dummyForType(_ type: Decodable.Type) -> AnyArray? {
+    fileprivate mutating func dummyForType(_ type: Decodable.Type) -> AnyArray? {
         let id = ObjectIdentifier(type)
         if nonMatchingTypeIds.contains(id) {
             return nil
