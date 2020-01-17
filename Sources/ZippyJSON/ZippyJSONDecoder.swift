@@ -258,8 +258,9 @@ final private class JSONDecodingStorage {
     private(set) fileprivate var containers = ContiguousArray<Value>()
 
     fileprivate init() {
+        containers.reserveCapacity(30)
     }
-    
+
     fileprivate func createCopy() -> JSONDecodingStorage {
         let copy = JSONDecodingStorage()
         copy.containers = containers
