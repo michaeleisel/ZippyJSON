@@ -255,7 +255,7 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer) -> Error {
 }
 
 final private class JSONDecodingStorage {
-    private(set) fileprivate var containers: [Value] = []
+    private(set) fileprivate var containers = ContiguousArray<Value>()
 
     fileprivate init() {
     }
@@ -836,10 +836,6 @@ private func throwErrorIfNecessary(_ value: Value) throws {
 }
 
 private struct JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
-    var codingPath: [CodingKey] {
-        return computeCodingPath(value: value, removeLastIfDictionary: !isEmpty)
-    }
-
     unowned(unsafe) private let decoder: __JSONDecoder
 
     typealias Key = K
@@ -847,7 +843,15 @@ private struct JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol 
     var value: Value
     
     var isEmpty: Bool
-    
+
+    var codingPath: [CodingKey] {
+        return computeCodingPath(value: value, removeLastIfDictionary: !isEmpty)
+    }
+
+    var allKeys: [Key] {
+        return JNTDocumentAllKeys(value, isEmpty).compactMap { Key(stringValue: $0) }
+    }
+
     static func ensureValueIsDictionary(value: Value) throws {
         guard JNTDocumentValueIsDictionary(value) else {
             throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: [], debugDescription: "Tried to unbox dictionary, but it wasn't a dictionary"))
@@ -868,10 +872,6 @@ private struct JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol 
     fileprivate init(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws {
         try (self.value, self.isEmpty) = JSONKeyedDecoder<K>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
         self.decoder = decoder
-    }
-
-    var allKeys: [Key] {
-        return JNTDocumentAllKeys(value, isEmpty).compactMap { Key(stringValue: $0) }
     }
 
     func contains(_ key: K) -> Bool {
@@ -1124,7 +1124,7 @@ protocol DummyCreatable {
     static func dummy() -> Self
 }
 
-private class ArrayTypeCache {
+final private class ArrayTypeCache {
     private var typeIdToDummy: [ObjectIdentifier: AnyArray] = [:]
     private var nonMatchingTypeIds = Set<ObjectIdentifier>()
     fileprivate func dummyForType(_ type: Decodable.Type) -> AnyArray? {
