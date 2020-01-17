@@ -1,7 +1,8 @@
 # ZippyJSON
 ## A much faster version of JSONDecoder
+![Coverage: 96%](https://img.shields.io/static/v1?label=coverage&message=96%&color=brightgreen)
 [![Cocoapods compatible](https://img.shields.io/badge/Cocoapods-compatible-4BC51D.svg?style=flat)](https://cocoapods.com)
-[![SwiftPM compatible](https://img.shields.io/badge/SwiftPM-Compatible%20%28iOS%29-brightgreen)](https://swift.org/package-manager/)
+[![SwiftPM compatible](https://img.shields.io/badge/SwiftPM-compatible%20%28iOS%29-brightgreen)](https://swift.org/package-manager/)
 
 ## Benchmarks
 
