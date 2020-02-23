@@ -310,35 +310,12 @@ final private class Wrapper<K: CodingKey> {
     }
 }
 
-final private class KeyedContainerPool {
-    var cache: [ObjectIdentifier: AnyWrapper] = [:]
-    
-    func reserveContainer<Key: CodingKey>(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws -> KeyedDecodingContainer<Key> {
-        let id = ObjectIdentifier(Key.self)
-        if let wrapper = cache[id] as? Wrapper<Key> {
-            if isKnownUniquelyReferenced(&wrapper.decoder) {
-                let innerDecoder = wrapper.decoder
-                JNTReleaseValue(innerDecoder.value)
-                (innerDecoder.value, innerDecoder.isEmpty) = try JSONKeyedDecoder<Key>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
-                return KeyedDecodingContainer(wrapper.decoder)
-            }
-        } else {
-            let decoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
-            cache[id] = Wrapper(decoder: decoder)
-            return KeyedDecodingContainer(decoder)
-        }
-        let decoder = try JSONKeyedDecoder<Key>(decoder: decoder, value: value, convertToCamel: convertToCamel)
-        return KeyedDecodingContainer(decoder)
-    }
-}
-
 final private class __JSONDecoder: Decoder {
     var errorType: Any.Type? = nil
     var userInfo: [CodingUserInfoKey : Any] = [:]
     var codingPath: [CodingKey] {
         return computeCodingPath(value: containers.topContainer)
     }
-    let keyedContainerPool = KeyedContainerPool()
     let value: Value
     let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
     let convertToCamel: Bool
@@ -376,7 +353,8 @@ final private class __JSONDecoder: Decoder {
     }
     
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
-        return try keyedContainerPool.reserveContainer(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel)
+		// Disable caching for now
+		return KeyedDecodingContainer(try JSONKeyedDecoder<Key>(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
     }
     
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
@@ -626,7 +604,7 @@ extension __JSONDecoder {
         defer {
             containers.popContainer()
         }
-        return try keyedContainerPool.reserveContainer(decoder: self, value: value, convertToCamel: convertToCamel)
+		return KeyedDecodingContainer(try JSONKeyedDecoder<NestedKey>(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
     }
 }
 
