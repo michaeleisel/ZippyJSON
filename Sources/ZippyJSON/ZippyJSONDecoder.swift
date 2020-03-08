@@ -312,7 +312,7 @@ final private class Wrapper<K: CodingKey> {
 
 final private class __JSONDecoder: Decoder {
     var errorType: Any.Type? = nil
-    var userInfo: [CodingUserInfoKey : Any] = [:]
+    var userInfo: [CodingUserInfoKey : Any]
     var codingPath: [CodingKey] {
         return computeCodingPath(value: containers.topContainer)
     }
@@ -332,7 +332,7 @@ final private class __JSONDecoder: Decoder {
         self.value = value
         self.containers = containers
         self.keyDecodingStrategy = keyDecodingStrategy
-	self.userInfo = userInfo
+        self.userInfo = userInfo
         if case .convertFromSnakeCase = keyDecodingStrategy {
             self.convertToCamel = true
         } else {
