@@ -13,7 +13,7 @@ extension ZippyJSONDecoder: TopLevelDecoder {
 }
 #endif
 
-typealias Value = UnsafeMutablePointer<DecoderDummy>
+typealias Value = DecoderStorage
 
 fileprivate var _iso8601Formatter: JJLISO8601DateFormatter = {
     let formatter = JJLISO8601DateFormatter()
@@ -348,11 +348,7 @@ final private class __JSONDecoder: Decoder {
             stringsForFloats = false
         }
     }
-    
-    deinit {
-        JNTReleaseValue(value)
-    }
-    
+
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
 		// Disable caching for now
 		return KeyedDecodingContainer(try JSONKeyedDecoder<Key>(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
@@ -597,7 +593,7 @@ extension __JSONDecoder {
         defer {
             containers.popContainer()
         }
-        return __JSONDecoder(value: JNTDocumentCreateCopy(value), containers: containers.createCopy(), keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy, userInfo: userInfo)
+        return __JSONDecoder(value: value, containers: containers.createCopy(), keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy, userInfo: userInfo)
     }
 
     fileprivate func unboxNestedContainer<NestedKey>(value: Value, keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
@@ -646,25 +642,14 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var codingPath: [CodingKey] {
         return computeCodingPath(value: currentValue, removeLastIfDictionary: false)
     }
-    
-    deinit {
-        JNTReleaseValue(currentValue);
-    }
 
     fileprivate init(decoder: __JSONDecoder, startingValue: Value) throws {
         try JSONUnkeyedDecoder.ensureValueIsArray(value: startingValue)
         self.decoder = decoder
         self.currentIndex = 0
-        var isEmpty = false
-        let currentValue = JNTDocumentEnterStructureAndReturnCopy(startingValue, &isEmpty)!
-        if isEmpty {
-            self.isAtEnd = true
-            self.count = 0
-        } else {
-            self.isAtEnd = false
-            self.count = JNTDocumentGetArrayCount(currentValue)
-        }
-        self.currentValue = currentValue
+        self.isAtEnd = JNTDocumentIsEmpty(startingValue)
+        self.count = JNTDocumentGetArrayCount(startingValue)
+        self.currentValue = startingValue
     }
 
     func decodeNil() throws -> Bool {
@@ -851,46 +836,39 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     var value: Value
     
-    var isEmpty: Bool
-    
-    deinit {
-        JNTReleaseValue(value)
-    }
-
     static func ensureValueIsDictionary(value: Value) throws {
         guard JNTDocumentValueIsDictionary(value) else {
             throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: [], debugDescription: "Tried to unbox dictionary, but it wasn't a dictionary"))
         }
     }
 
-    fileprivate static func setupValue(_ value: Value, decoder: __JSONDecoder, convertToCamel: Bool) throws -> (Value, Bool) {
+    fileprivate static func setupValue(_ value: Value, decoder: __JSONDecoder, convertToCamel: Bool) throws -> Value {
         try ensureValueIsDictionary(value: value)
-        var isEmpty = false
-        let innerValue = JNTDocumentEnterStructureAndReturnCopy(value, &isEmpty)!
+        let innerValue = JNTDocumentEnterStructureAndReturnCopy(value)!
         // todo: fix bug where the keys get converted and then used to create a dictionary later
-        if (convertToCamel && !isEmpty) {
+        if (convertToCamel) {
             JNTConvertSnakeToCamel(innerValue)
         }
-        return (innerValue, isEmpty)
+        return innerValue
     }
 
     fileprivate init(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws {
-        try (self.value, self.isEmpty) = JSONKeyedDecoder<K>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
+        try self.value = JSONKeyedDecoder<K>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
         self.decoder = decoder
     }
 
     var allKeys: [Key] {
-        return JNTDocumentAllKeys(value, isEmpty).compactMap { Key(stringValue: $0) }
+        return JNTDocumentAllKeys(value).compactMap { Key(stringValue: $0) }
     }
 
     func contains(_ key: K) -> Bool {
         return key.stringValue.withCString { pointer in
-            return JNTDocumentContains(value, pointer, isEmpty)
+            return JNTDocumentContains(value, pointer)
         }
     }
 
     private func fetchValue(keyPointer: UnsafePointer<Int8>) -> Value {
-        return JNTDocumentFetchValue(value, keyPointer, isEmpty)
+        return JNTDocumentFetchValue(value, keyPointer)
     }
 
     func decodeNil(forKey key: K) throws -> Bool {
@@ -1097,11 +1075,6 @@ extension ContiguousArray: DummyCreatable where Element: Decodable {
 extension ContiguousArray: AnyArray where Element: Decodable {
     fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
         try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
-        var isEmpty = false
-        guard var currentValue = JNTDocumentEnterStructureAndReturnCopy(value, &isEmpty) else {
-            return []
-        }
-        defer { JNTReleaseValue(currentValue) }
         if isEmpty {
             return []
         }
