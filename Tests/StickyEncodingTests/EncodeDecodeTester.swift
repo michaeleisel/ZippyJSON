@@ -35,9 +35,13 @@ internal func _testDecodeTypeMismatch<I,T>(input: I, expected: (type: T.Type, er
 
         let data = try encoder.encode(input)
 
+        //try decoder.decode(expected.type, from: data)
         XCTAssertThrowsError(try decoder.decode(expected.type, from: data)) { (error) in
         }
-    } catch { XCTFail("Expected test not to throw but threw: \(error)", file: file, line: line) }
+    } catch {
+        abort()
+        XCTFail("Expected test not to throw but threw: \(error)", file: file, line: line)
+    }
 }
 
 ///

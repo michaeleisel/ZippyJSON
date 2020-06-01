@@ -27,7 +27,7 @@
 // KeyedBegin
 <% (types + ["T"]).each do |type| %>
     <%= inline %>fileprivate func decode<%= type == "T" ? "<T : Decodable>" : "" %>(_ type: <%= type %>.Type, forKey key: K) <%= throws(type) %>-> <%= type %> {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return <%= try(type) %>decoder.unbox(subValue, as: <%= type %>.self)
     }
 

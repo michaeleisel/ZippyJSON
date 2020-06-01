@@ -635,7 +635,7 @@ struct JSONKey : CodingKey {
 
 private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var currentValue: JNTDecoder
-    // let root: JNTDecoder
+    let root: JNTDecoder
     var count: Int?
     var iterator: JNTIterator
     private unowned(unsafe) let decoder: __JSONDecoder
@@ -652,13 +652,13 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
     fileprivate init(decoder: __JSONDecoder, value: Value) throws {
         try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
-        // self.root = value
+        self.root = value
         self.decoder = decoder
-        self.currentIndex = 0
         let count = JNTDocumentGetArrayCount(value)
         self.count = count
-        self.currentValue = value
         self.iterator = JNTDocumentGetIterator(value)
+        self.currentIndex = 0
+        self.currentValue = JNTDecoderFromIterator(&self.iterator, root)
     }
 
     func decodeNil() throws -> Bool {
@@ -678,7 +678,8 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     func advanceArray() {
-        currentValue = JNTAdvanceIterator(&iterator, currentValue)
+        JNTAdvanceIterator(&iterator, root)
+        currentValue = JNTDecoderFromIterator(&iterator, root)
         currentIndex += 1
     }
 
@@ -876,12 +877,14 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         }
     }
 
-    private func fetchValue(keyPointer: UnsafePointer<Int8>) -> Value {
-        return JNTDocumentFetchValue(value, keyPointer)
+    private func fetchValue(keyPointer: UnsafePointer<Int8>) throws -> Value {
+        let result = JNTDocumentFetchValue(value, keyPointer)
+        try throwErrorIfNecessary(value)
+        return result
     }
 
     func decodeNil(forKey key: K) throws -> Bool {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         let bool = JNTDocumentDecodeNil(subValue)
         try throwErrorIfNecessary(subValue)
         return bool
@@ -889,93 +892,93 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     // KeyedBegin
     fileprivate func decode(_ type: UInt8.Type, forKey key: K) throws -> UInt8 {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: UInt8.self)
     }
 
     fileprivate func decode(_ type: UInt16.Type, forKey key: K) throws -> UInt16 {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: UInt16.self)
     }
 
     fileprivate func decode(_ type: UInt32.Type, forKey key: K) throws -> UInt32 {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: UInt32.self)
     }
 
     fileprivate func decode(_ type: UInt64.Type, forKey key: K) throws -> UInt64 {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: UInt64.self)
     }
 
     fileprivate func decode(_ type: Int8.Type, forKey key: K) throws -> Int8 {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: Int8.self)
     }
 
     fileprivate func decode(_ type: Int16.Type, forKey key: K) throws -> Int16 {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: Int16.self)
     }
 
     fileprivate func decode(_ type: Int32.Type, forKey key: K) throws -> Int32 {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: Int32.self)
     }
 
     fileprivate func decode(_ type: Int64.Type, forKey key: K) throws -> Int64 {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: Int64.self)
     }
 
     fileprivate func decode(_ type: Bool.Type, forKey key: K) throws -> Bool {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: Bool.self)
     }
 
     fileprivate func decode(_ type: String.Type, forKey key: K) throws -> String {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: String.self)
     }
 
     fileprivate func decode(_ type: Double.Type, forKey key: K) throws -> Double {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: Double.self)
     }
 
     fileprivate func decode(_ type: Float.Type, forKey key: K) throws -> Float {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: Float.self)
     }
 
     fileprivate func decode(_ type: Int.Type, forKey key: K) throws -> Int {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: Int.self)
     }
 
     fileprivate func decode(_ type: UInt.Type, forKey key: K) throws -> UInt {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: UInt.self)
     }
 
     fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: T.self)
     }
     // End
 
     func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: K) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unboxNestedContainer(value: subValue, keyedBy: type)
     }
 
     func nestedUnkeyedContainer(forKey key: K) throws -> UnkeyedDecodingContainer {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unboxNestedUnkeyedContainer(value: subValue)
     }
 
     private func _superDecoder(forKey key: CodingKey) throws -> Decoder {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         // todo: throw exceptions here
         return decoder.unboxSuper(subValue)
     }
@@ -1089,6 +1092,7 @@ extension ContiguousArray: AnyArray where Element: Decodable {
         let count = JNTDocumentGetArrayCount(value)
 
         var currentValue = value
+        let root = value
         var iterator = JNTDocumentGetIterator(value)
         var array: ContiguousArray<Element> = ContiguousArray()
         array.reserveCapacity(count)
@@ -1096,13 +1100,15 @@ extension ContiguousArray: AnyArray where Element: Decodable {
             for _ in 0..<count {
                 let element = try innerDummy.create(value: currentValue, decoder: decoder) as! Element
                 array.append(element)
-                currentValue = JNTAdvanceIterator(&iterator, currentValue)
+                JNTAdvanceIterator(&iterator, root)
+                currentValue = JNTDecoderFromIterator(&iterator, root)
             }
         } else {
             for _ in 0..<count {
                 let element = try decoder.unbox(currentValue, as: Element.self)
                 array.append(element)
-                currentValue = JNTAdvanceIterator(&iterator, currentValue)
+                JNTAdvanceIterator(&iterator, root)
+                currentValue = JNTDecoderFromIterator(&iterator, root)
             }
         }
         return array
@@ -1135,4 +1141,3 @@ private class ArrayTypeCache {
         }
     }
 }
-

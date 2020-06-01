@@ -61,10 +61,11 @@ public class ComplexSubclassClass: ComplexClass {
 
     // MARK: - `Equatable` conformance for testing/debugging.
 
-    public override func equals<T>(_ other: T) -> Bool where T: ComplexSubclassClass {
+    public override func equals<T>(_ other: T) -> Bool where T: ComplexClass {
 
-        return super.equals(other) &&
-               self.subclassStringVar == other.subclassStringVar
+        guard super.equals(other) else { return false }
+        guard let sub = other as? ComplexSubclassClass else { return false }
+        return self.subclassStringVar == sub.subclassStringVar
     }
 
     // MARK: - `CustomStringConvertible` conformance for testing/debugging.
