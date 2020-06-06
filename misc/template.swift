@@ -1,7 +1,7 @@
 // UnkeyedBegin
 <% types.each do |type| %>
     <%= inline %>public func decode(_ type: <%= type %>.Type) throws -> <%= type %> {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: <%= type %>.self)
         advanceArray()
         return decoded

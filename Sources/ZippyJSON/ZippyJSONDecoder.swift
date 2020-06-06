@@ -57,12 +57,12 @@ public final class ZippyJSONDecoder {
             return pI.withCString { pIP in
                 nI.withCString { nIP in
                     nan.withCString { nanP in
-                        return JNTCreateContext(string, UInt32(length), nIP, pIP, nanP)
+                        return JNTCreateContext(string, UInt32(length), nIP, pIP, nanP, true)
                     }
                 }
             }
         case .throw:
-            return JNTCreateContext(string, UInt32(length), "", "", "")
+            return JNTCreateContext(string, UInt32(length), "", "", "", false)
         }
     }
 
@@ -94,16 +94,12 @@ public final class ZippyJSONDecoder {
                 }
                 return result
             } else {
-                if !JNTErrorDidOccur(context) {
-                    // The JSON is OK but it should be redone by apple
-                    var retryReasonString: String? = nil
-                    if let retryReason = retryReason {
-                        retryReasonString = String(utf8String: retryReason)!
-                    }
-                    return try decodeWithAppleDecoder(type, from: data, reason: retryReasonString)
-                } else {
-                    throw swiftErrorFromError(context)
-                }
+                // Either the JSON is malformed, or the JSON is OK but it should be redone by apple.
+                // If it's malformed, we could return early here, but it simplifies things to have everything do retry.
+                // It will also throw Apple's version of the exception if the JSON is malformed, which looks a little
+                // nicer.
+                let retryReasonString = retryReason.map { String(utf8String: $0)! } ?? ""
+                return try decodeWithAppleDecoder(type, from: data, reason: retryReasonString)
             }
         }
     }
@@ -230,8 +226,7 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer) -> Error {
     var error: Error? = nil
     JNTProcessError(context) { (description, type, value, key) in
         let debugDescription = String(utf8String: description!)!
-        // let path = value.computeCodingPath(value: value)
-        let path: [CodingKey] = []
+        let path = computeCodingPath(value: value)
         let keyString = key.map { String(utf8String: $0) ?? "" } ?? ""
         let key = JSONKey(stringValue: keyString)!
         let instanceType = Any.self
@@ -282,8 +277,8 @@ final private class JSONDecodingStorage {
     }
 }
 
-private func computeCodingPath(value: Value, removeLastIfDictionary: Bool = true) -> [JSONKey] {
-    var codingPath = JNTDocumentCodingPath(value).compactMap { element -> JSONKey? in
+private func computeCodingPath(value: Value) -> [JSONKey] {
+    return JNTDocumentCodingPath(value).compactMap { element -> JSONKey? in
         if let index = element as? NSNumber {
             return JSONKey(index: index.intValue)
         } else if let key = element as? NSString {
@@ -291,10 +286,6 @@ private func computeCodingPath(value: Value, removeLastIfDictionary: Bool = true
         }
         return nil // Wouldn't happen
     }
-    if removeLastIfDictionary, let last = codingPath.last, last.intValue == nil {
-        codingPath.removeLast()
-    }
-    return codingPath
 }
 
 // Wrapper and AnyWrapper allow for isKnownUniquelyReferenced to work
@@ -647,7 +638,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     var codingPath: [CodingKey] {
-        return computeCodingPath(value: currentValue, removeLastIfDictionary: false)
+        return computeCodingPath(value: currentValue)
     }
 
     fileprivate init(decoder: __JSONDecoder, value: Value) throws {
@@ -658,11 +649,11 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         self.count = count
         self.iterator = JNTDocumentGetIterator(value)
         self.currentIndex = 0
-        self.currentValue = JNTDecoderFromIterator(&self.iterator, root)
+        self.currentValue = root
     }
 
     func decodeNil() throws -> Bool {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let isNil = JNTDocumentDecodeNil(currentValue)
         if isNil {
             advanceArray()
@@ -671,7 +662,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: T.self)
         advanceArray()
         return decoded
@@ -679,20 +670,18 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
     func advanceArray() {
         JNTAdvanceIterator(&iterator, root)
-        currentValue = JNTDecoderFromIterator(&iterator, root)
         currentIndex += 1
     }
 
-    func ensureArrayIsNotAtEnd() throws {
+    func valueFromIterator() throws -> JNTDecoder {
         if !isAtEnd {
-            return
+            return JNTDecoderFromIterator(&iterator, root)
         }
         var path = codingPath
         if let count = count, count > 0 {
             let _ = path.popLast()
         }
         path.append(JSONKey(index: currentIndex))
-        //}
         throw DecodingError.valueNotFound(Any.self,
                                           DecodingError.Context(codingPath: path,
                                                                 debugDescription: "Cannot get next value -- unkeyed container is at end."))
@@ -705,21 +694,21 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     public func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let container = try decoder.unboxNestedContainer(value: currentValue, keyedBy: type)
         advanceArray()
         return container
     }
 
     func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let container = try decoder.unboxNestedUnkeyedContainer(value: currentValue)
         advanceArray()
         return container
     }
 
     func superDecoder() throws -> Decoder {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let container = decoder.unboxSuper(currentValue)
         advanceArray()
         return container
@@ -727,98 +716,98 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
     // UnkeyedBegin
     public func decode(_ type: UInt8.Type) throws -> UInt8 {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: UInt8.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: UInt16.Type) throws -> UInt16 {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: UInt16.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: UInt32.Type) throws -> UInt32 {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: UInt32.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: UInt64.Type) throws -> UInt64 {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: UInt64.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Int8.Type) throws -> Int8 {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Int8.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Int16.Type) throws -> Int16 {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Int16.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Int32.Type) throws -> Int32 {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Int32.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Int64.Type) throws -> Int64 {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Int64.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Bool.Type) throws -> Bool {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Bool.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: String.Type) throws -> String {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: String.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Double.Type) throws -> Double {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Double.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Float.Type) throws -> Float {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Float.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: Int.Type) throws -> Int {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Int.self)
         advanceArray()
         return decoded
     }
 
     public func decode(_ type: UInt.Type) throws -> UInt {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: UInt.self)
         advanceArray()
         return decoded
@@ -838,7 +827,7 @@ private func throwErrorIfNecessary(_ value: Value) throws {
 
 private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
     var codingPath: [CodingKey] {
-        return computeCodingPath(value: value, removeLastIfDictionary: true)
+        return computeCodingPath(value: value)
     }
 
     unowned(unsafe) private let decoder: __JSONDecoder
@@ -1091,24 +1080,23 @@ extension ContiguousArray: AnyArray where Element: Decodable {
         defer { decoder.containers.popContainer() }
         let count = JNTDocumentGetArrayCount(value)
 
-        var currentValue = value
         let root = value
         var iterator = JNTDocumentGetIterator(value)
         var array: ContiguousArray<Element> = ContiguousArray()
         array.reserveCapacity(count)
         if let innerDummy = decoder.arrayTypeCache.dummyForType(Element.self) {
             for _ in 0..<count {
+                let currentValue = JNTDecoderFromIterator(&iterator, root)
                 let element = try innerDummy.create(value: currentValue, decoder: decoder) as! Element
                 array.append(element)
                 JNTAdvanceIterator(&iterator, root)
-                currentValue = JNTDecoderFromIterator(&iterator, root)
             }
         } else {
             for _ in 0..<count {
+                let currentValue = JNTDecoderFromIterator(&iterator, root)
                 let element = try decoder.unbox(currentValue, as: Element.self)
                 array.append(element)
                 JNTAdvanceIterator(&iterator, root)
-                currentValue = JNTDecoderFromIterator(&iterator, root)
             }
         }
         return array
