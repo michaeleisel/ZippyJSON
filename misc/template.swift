@@ -1,7 +1,7 @@
 // UnkeyedBegin
 <% types.each do |type| %>
     <%= inline %>public func decode(_ type: <%= type %>.Type) throws -> <%= type %> {
-        try ensureArrayIsNotAtEnd()
+        currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: <%= type %>.self)
         advanceArray()
         return decoded
@@ -27,7 +27,7 @@
 // KeyedBegin
 <% (types + ["T"]).each do |type| %>
     <%= inline %>fileprivate func decode<%= type == "T" ? "<T : Decodable>" : "" %>(_ type: <%= type %>.Type, forKey key: K) <%= throws(type) %>-> <%= type %> {
-        let subValue: Value = key.stringValue.withCString(fetchValue)
+        let subValue: Value = try key.stringValue.withCString(fetchValue)
         return <%= try(type) %>decoder.unbox(subValue, as: <%= type %>.self)
     }
 

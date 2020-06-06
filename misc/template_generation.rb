@@ -27,7 +27,6 @@ def convert(type)
   conversion = {
     "String" => "String(utf8String: result!)!"
   }[type]
-  # binding.pry if type == "String"
   conversion || "result"
 end
 

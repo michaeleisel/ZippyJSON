@@ -651,6 +651,20 @@ class ZippyJSONTests: XCTestCase {
         //_testFailure(of: Int64.self, json: "255", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "The given data was not valid JSON.")))
     }
 
+    func testMultipleRefsToSameDecoder() {
+        struct Aa: Codable, Equatable {
+            let value: Int
+            init(from decoder: Decoder) throws {
+                var c1 = try decoder.unkeyedContainer()
+                var c2 = try decoder.unkeyedContainer()
+                // Get c1 to skip ahead
+                let _ = try c1.decode(Int.self)
+                value = try c2.decode(Int.self)
+            }
+        }
+        testRoundTrip(of: Aa.self, json: "[20]")
+    }
+
     func testInts() {
         testRoundTrip(of: [UInt8].self, json: "[255]")
         _testFailure(of: [UInt8].self, json: "[256]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number 256 does not fit.")))
