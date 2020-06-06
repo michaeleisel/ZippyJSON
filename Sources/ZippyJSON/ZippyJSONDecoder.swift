@@ -38,7 +38,8 @@ func isOnSimulator() -> Bool {
 }
 
 public final class ZippyJSONDecoder {
-    public var zjd_fullPrecisionFloatParsing = true // This flag is deprecated, now that we always have full precision
+    @available(*, deprecated, message: "This flag is deprecated because full-precision parsing speed is now on par with imprecise, so it will just always use full-precision")
+    public var zjd_fullPrecisionFloatParsing = true
     private static var _zjd_suppressWarnings: Bool = false
     public static var zjd_suppressWarnings: Bool {
         get {
@@ -631,7 +632,6 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var iterator: JNTIterator
     private unowned(unsafe) let decoder: __JSONDecoder
     var currentIndex: Int
-    // var iterator: JNTIterator
     var isAtEnd: Bool {
         // count is never nil in practice, so the fallback value will never be hit
         currentIndex >= (count ?? 0)
