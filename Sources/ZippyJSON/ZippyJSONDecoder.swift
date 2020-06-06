@@ -316,7 +316,6 @@ final private class __JSONDecoder: Decoder {
     let dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy
     let nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy
     var swiftError: Error?
-    var stringsForFloats: Bool
     let arrayTypeCache = ArrayTypeCache()
 
     fileprivate var containers: JSONDecodingStorage
@@ -334,12 +333,6 @@ final private class __JSONDecoder: Decoder {
         self.dataDecodingStrategy = dataDecodingStrategy
         self.dateDecodingStrategy = dateDecodingStrategy
         self.nonConformingFloatDecodingStrategy = nonConformingFloatDecodingStrategy
-        switch (nonConformingFloatDecodingStrategy) {
-        case .convertFromString(positiveInfinity: _, negativeInfinity: _, nan: _):
-            stringsForFloats = true
-        case .throw:
-            stringsForFloats = false
-        }
     }
 
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {

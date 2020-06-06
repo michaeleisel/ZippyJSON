@@ -512,7 +512,10 @@ class ZippyJSONTests: XCTestCase {
         _testFailure(of: [Date].self, json: #"["March"]"#, expectedError: formatterError, dateDecodingStrategy: .formatted(formatter))
         _testFailure(of: [Date].self, json: "[23423423]", expectedError: typeError, dateDecodingStrategy: .formatted(formatter))
     }
-    
+
+    func testDefaultFloatStrings() {
+        _testFailure(of: [Float].self, json: #"[""]"#)
+    }
 
   func testLesserUsedFunctions() {
     struct NestedArrayMember: Codable, Equatable {
