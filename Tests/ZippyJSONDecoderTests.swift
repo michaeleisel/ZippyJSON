@@ -647,11 +647,13 @@ class ZippyJSONTests: XCTestCase {
     }
     
     func testRawValuePassedAsJson() {
-        // DecodingError.Context(codingPath: <#T##[CodingKey]#>, debugDescription: <#T##String#>, underlyingError: <#T##Error?#>)
-        // testRoundTrip(of: [UInt8].self, json: "255")
-        // _testFailure(of: UInt8.self, json: "255", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number 256 does not fit.")))
-        //_testFailure(of: Bool.self, json: "false", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "The given data was not valid JSON. Error: Problem while parsing an atom starting with the letter \'f\'")))
-        //_testFailure(of: Int64.self, json: "255", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "The given data was not valid JSON.")))
+        testRoundTrip(of: Bool.self, json: "false")
+        testRoundTrip(of: Bool.self, json: #"true"#)
+        testRoundTrip(of: Int.self, json: "82")
+        _testFailure(of: Int.self, json: "82.1")
+        testRoundTrip(of: Double.self, json: "82.1")
+        testRoundTrip(of: String.self, json: #""test""#)
+        _testFailure(of: Int.self, json: #"undefined"#)
     }
 
     func testMultipleRefsToSameDecoder() {
@@ -669,6 +671,12 @@ class ZippyJSONTests: XCTestCase {
     }
 
     func testInts() {
+        testRoundTrip(of: Int64.self, json: "\(Int64.max)")
+        testRoundTrip(of: UInt64.self, json: "\(UInt64.max)")
+        _testFailure(of: Int64.self, json: "\(UInt64.max)")
+        testRoundTrip(of: Double.self, json: "\(Int64.max)")
+        testRoundTrip(of: Double.self, json: "\(UInt64.max)")
+        testRoundTrip(of: UInt64.self, json: "\(UInt64.max)")
         testRoundTrip(of: [UInt8].self, json: "[255]")
         _testFailure(of: [UInt8].self, json: "[256]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number 256 does not fit.")))
         _testFailure(of: [UInt8].self, json: "[-1]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number -1 does not fit.")))
