@@ -964,7 +964,6 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     private func _superDecoder(forKey key: CodingKey) throws -> Decoder {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
-        // todo: throw exceptions here
         return decoder.unboxSuper(subValue)
     }
 
