@@ -622,7 +622,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var currentValue: JNTDecoder
     let root: JNTDecoder
     var count: Int?
-    var iterator: JNTIterator
+    var iterator: JNTArrayIterator
     private unowned(unsafe) let decoder: __JSONDecoder
     var currentIndex: Int
     var isAtEnd: Bool {
@@ -829,6 +829,8 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     var value: Value
 
+    var iterator: JNTDictionaryIterator
+
     static func ensureValueIsDictionary(value: Value) throws {
         guard JNTDocumentValueIsDictionary(value) else {
             throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: [], debugDescription: "Tried to unbox dictionary, but it wasn't a dictionary"))
@@ -856,12 +858,12 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     func contains(_ key: K) -> Bool {
         return key.stringValue.withCString { pointer in
-            return JNTDocumentContains(value, pointer)
+            return JNTDocumentContains(value, pointer, &iterator)
         }
     }
 
     private func fetchValue(keyPointer: UnsafePointer<Int8>) throws -> Value {
-        let result = JNTDocumentFetchValue(value, keyPointer)
+        let result = JNTDocumentFetchValue(value, keyPointer, &iterator)
         try throwErrorIfNecessary(value)
         return result
     }
