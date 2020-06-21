@@ -618,7 +618,7 @@ struct JSONKey : CodingKey {
     static let `super` = JSONKey(stringValue: "super")!
 }
 
-private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
+private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var currentValue: JNTDecoder
     let root: JNTDecoder
     var count: Int?
@@ -645,7 +645,7 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         self.currentValue = root
     }
 
-    func decodeNil() throws -> Bool {
+    mutating func decodeNil() throws -> Bool {
         currentValue = try valueFromIterator()
         let isNil = JNTDocumentDecodeNil(currentValue)
         if isNil {
@@ -654,19 +654,19 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         return isNil
     }
 
-    func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
+    mutating func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: T.self)
         advanceArray()
         return decoded
     }
 
-    func advanceArray() {
+    mutating func advanceArray() {
         JNTAdvanceIterator(&iterator, root)
         currentIndex += 1
     }
 
-    func valueFromIterator() throws -> JNTDecoder {
+    mutating func valueFromIterator() throws -> JNTDecoder {
         if !isAtEnd {
             return JNTDecoderFromIterator(&iterator, root)
         }
@@ -686,21 +686,21 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         }
     }
 
-    public func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> {
+    mutating public func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> {
         currentValue = try valueFromIterator()
         let container = try decoder.unboxNestedContainer(value: currentValue, keyedBy: type)
         advanceArray()
         return container
     }
 
-    func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
+    mutating func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
         currentValue = try valueFromIterator()
         let container = try decoder.unboxNestedUnkeyedContainer(value: currentValue)
         advanceArray()
         return container
     }
 
-    func superDecoder() throws -> Decoder {
+    mutating func superDecoder() throws -> Decoder {
         currentValue = try valueFromIterator()
         let container = decoder.unboxSuper(currentValue)
         advanceArray()
@@ -708,98 +708,98 @@ private final class JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     // UnkeyedBegin
-    public func decode(_ type: UInt8.Type) throws -> UInt8 {
+    public mutating func decode(_ type: UInt8.Type) throws -> UInt8 {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: UInt8.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: UInt16.Type) throws -> UInt16 {
+    public mutating func decode(_ type: UInt16.Type) throws -> UInt16 {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: UInt16.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: UInt32.Type) throws -> UInt32 {
+    public mutating func decode(_ type: UInt32.Type) throws -> UInt32 {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: UInt32.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: UInt64.Type) throws -> UInt64 {
+    public mutating func decode(_ type: UInt64.Type) throws -> UInt64 {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: UInt64.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Int8.Type) throws -> Int8 {
+    public mutating func decode(_ type: Int8.Type) throws -> Int8 {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Int8.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Int16.Type) throws -> Int16 {
+    public mutating func decode(_ type: Int16.Type) throws -> Int16 {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Int16.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Int32.Type) throws -> Int32 {
+    public mutating func decode(_ type: Int32.Type) throws -> Int32 {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Int32.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Int64.Type) throws -> Int64 {
+    public mutating func decode(_ type: Int64.Type) throws -> Int64 {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Int64.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Bool.Type) throws -> Bool {
+    public mutating func decode(_ type: Bool.Type) throws -> Bool {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Bool.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: String.Type) throws -> String {
+    public mutating func decode(_ type: String.Type) throws -> String {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: String.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Double.Type) throws -> Double {
+    public mutating func decode(_ type: Double.Type) throws -> Double {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Double.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Float.Type) throws -> Float {
+    public mutating func decode(_ type: Float.Type) throws -> Float {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Float.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: Int.Type) throws -> Int {
+    public mutating func decode(_ type: Int.Type) throws -> Int {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: Int.self)
         advanceArray()
         return decoded
     }
 
-    public func decode(_ type: UInt.Type) throws -> UInt {
+    public mutating func decode(_ type: UInt.Type) throws -> UInt {
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: UInt.self)
         advanceArray()
@@ -847,6 +847,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     fileprivate init(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws {
         try self.value = JSONKeyedDecoder<K>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
         self.decoder = decoder
+        self.iterator = JNTDocumentGetDictionaryIterator(value)
     }
 
     var allKeys: [Key] {
