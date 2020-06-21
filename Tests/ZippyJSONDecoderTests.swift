@@ -481,7 +481,7 @@ class ZippyJSONTests: XCTestCase {
         let d = Data(count: count)
         try! ZippyJSONDecoder().decode(Cc.self, from: d)*/
     }
-    
+
     func testInvalidDates() {
         let secondsError = dateError("Expected double/float but found Bool instead.")
         testRoundTrip(of: [Date].self, json: "[23908742398047]", dateDecodingStrategy: .secondsSince1970)
@@ -678,6 +678,7 @@ class ZippyJSONTests: XCTestCase {
         testRoundTrip(of: Double.self, json: "\(Int64.max)")
         testRoundTrip(of: Double.self, json: "\(UInt64.max)")
         testRoundTrip(of: UInt64.self, json: "\(UInt64.max)")
+        testRoundTrip(of: [Int8].self, json: "[127]")
         testRoundTrip(of: [UInt8].self, json: "[255]")
         _testFailure(of: [UInt8].self, json: "[256]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number 256 does not fit.")))
         _testFailure(of: [UInt8].self, json: "[-1]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number -1 does not fit.")))
