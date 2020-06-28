@@ -340,7 +340,7 @@ final private class __JSONDecoder: Decoder {
 		// Disable caching for now
 		return KeyedDecodingContainer(try JSONKeyedDecoder<Key>(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
     }
-    
+
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
         return try JSONUnkeyedDecoder(decoder: self, value: containers.topContainer)
     }
@@ -618,7 +618,7 @@ final class JSONKeyManager {
             computedKeys = computeKeys()
         }
         pthread_mutex_unlock(&mutex)
-        return computedKeys[index] ?? JSONKey(stringValue: "<coding key unknown>")
+        return computedKeys[index] ?? JSONKey(stringValue: "<coding key unknown>")!
     }
 }
 
@@ -674,9 +674,10 @@ final class JSONKey : CodingKey {
     static let `super` = JSONKey(stringValue: "super")!
 }
 
-private func createKeyArray(size: Int, value: Value) -> [LazyJSONKey] {
+private func computeCodingPath(value: Value) -> [LazyJSONKey] {
     let manager = JSONKeyManager(value: value)
     var keys: ContiguousArray<LazyJSONKey> = []
+    let size = JNTGetScopeDepth()
     keys.reserveCapacity(size)
     for i in 0..<size {
         let key = LazyJSONKey(manager: manager, index: i)
@@ -690,7 +691,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     let root: JNTDecoder
     var count: Int?
     var iterator: JNTArrayIterator
-    private unowned(unsafe) let decoder: __JSONDecoder
+    private unowned let decoder: __JSONDecoder
     var currentIndex: Int
     var isAtEnd: Bool {
         // count is never nil in practice, so the fallback value will never be hit
@@ -890,7 +891,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         return createKeyArray(size: decoder.containers.containers.count, value: value)
     }
 
-    unowned(unsafe) private let decoder: __JSONDecoder
+    unowned private let decoder: __JSONDecoder
 
     typealias Key = K
 
@@ -1138,7 +1139,7 @@ extension ContiguousArray: DummyCreatable where Element: Decodable {
 extension ContiguousArray: AnyArray where Element: Decodable {
     fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
         try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
-        decoder.containers.push(container: value, index: .arrayIndex(0))
+        decoder.containers.push(container: value, index: .arrayIndex(-1))
         defer { decoder.containers.popContainer() }
         let count = JNTDocumentGetArrayCount(value)
 
