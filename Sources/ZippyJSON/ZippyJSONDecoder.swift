@@ -15,6 +15,13 @@ extension ZippyJSONDecoder: TopLevelDecoder {
 
 typealias Value = JNTDecoderStorage
 
+class WeakContainer<T: AnyClass> {
+    weak var value: T?
+    init(value: T) {
+        self.value = value
+    }
+}
+
 fileprivate var _iso8601Formatter: JJLISO8601DateFormatter = {
     let formatter = JJLISO8601DateFormatter()
     formatter.formatOptions = .withInternetDateTime
@@ -251,8 +258,13 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer) -> Error {
     return error ?? NSError(domain: "", code: 0, userInfo: [:])
 }
 
+enum Index {
+    case string(UnsafePointer<Int8>)
+    case arrayIndex(Int)
+}
+
 final private class JSONDecodingStorage {
-    private(set) fileprivate var containers: [Value] = []
+    private(set) fileprivate var containers: [(Value, Index)] = []
 
     fileprivate init() {
     }
@@ -265,27 +277,16 @@ final private class JSONDecodingStorage {
 
     fileprivate var topContainer: Value {
         precondition(!self.containers.isEmpty, "Empty container stack.")
-        return self.containers.last!
+        return self.containers.last!.0
     }
 
-    fileprivate func push(container: Value) {
-        self.containers.append(container)
+    fileprivate func push(container: Value, index: Index) {
+        self.containers.append((container, index))
     }
 
     fileprivate func popContainer() {
         precondition(!self.containers.isEmpty, "Empty container stack.")
         self.containers.removeLast()
-    }
-}
-
-private func computeCodingPath(value: Value) -> [JSONKey] {
-    return JNTDocumentCodingPath(value).compactMap { element -> JSONKey? in
-        if let index = element as? NSNumber {
-            return JSONKey(index: index.intValue)
-        } else if let key = element as? NSString {
-            return JSONKey(stringValue: String(key))
-        }
-        return nil // Wouldn't happen
     }
 }
 
@@ -377,7 +378,7 @@ final private class __JSONDecoder: Decoder {
     fileprivate func unbox(_ value: Value, as type: Date.Type) throws -> Date {
         switch dateDecodingStrategy {
         case .deferredToDate:
-            containers.push(container: value)
+            containers.push(container: value, index: .arrayIndex(-1))
             defer { containers.popContainer() }
             return try Date(from: self)
 
@@ -402,7 +403,7 @@ final private class __JSONDecoder: Decoder {
             }
             return date
         case .custom(let closure):
-            containers.push(container: value)
+            containers.push(container: value, index: .arrayIndex(-1))
             defer { containers.popContainer() }
             return try closure(self)
         }
@@ -419,7 +420,7 @@ final private class __JSONDecoder: Decoder {
         case .deferredToData:
             return try Data(from: self)
         case .custom(let closure):
-            containers.push(container: value)
+            containers.push(container: value, index: .arrayIndex(-1))
             defer { containers.popContainer() }
             return try closure(self)
         }
@@ -452,7 +453,7 @@ final private class __JSONDecoder: Decoder {
     }
 
     fileprivate func unbox_(_ value: Value, as type: Decodable.Type) throws -> Any {
-        containers.push(container: value)
+        containers.push(container: value, index: .arrayIndex(-1))
         defer { containers.popContainer() }
         
         if type == Date.self || type == NSDate.self {
@@ -567,7 +568,7 @@ extension __JSONDecoder {
     // End
 
     fileprivate func unboxNestedUnkeyedContainer(value: Value) throws -> UnkeyedDecodingContainer {
-        containers.push(container: value)
+        containers.push(container: value, index: .arrayIndex(-1))
         defer {
             containers.popContainer()
         }
@@ -575,15 +576,15 @@ extension __JSONDecoder {
     }
 
     fileprivate func unboxSuper(_ value: Value) -> Decoder {
-        containers.push(container: value)
+        containers.push(container: value, index: .arrayIndex(-1))
         defer {
             containers.popContainer()
         }
         return __JSONDecoder(value: value, containers: containers.createCopy(), keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy, userInfo: userInfo)
     }
 
-    fileprivate func unboxNestedContainer<NestedKey>(value: Value, keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
-        containers.push(container: value)
+    fileprivate func unboxNestedContainer<NestedKey>(value: Value, keyedBy type: NestedKey.Type, index: Index) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
+        containers.push(container: value, index: index)
         defer {
             containers.popContainer()
         }
@@ -591,7 +592,62 @@ extension __JSONDecoder {
     }
 }
 
-struct JSONKey : CodingKey {
+final class JSONKeyManager {
+    private var computedKeys: [JSONKey]?
+    private let value: Value
+    private var mutex: pthread_mutex_t
+
+    init(value: Value ){
+        self.value = value
+    }
+
+    func computeKeys() -> [JSONKey] {
+        return JNTDocumentCodingPath(value).compactMap { element -> JSONKey? in
+            if let index = element as? NSNumber {
+                return JSONKey(index: index.intValue)
+            } else if let key = element as? NSString {
+                return JSONKey(stringValue: String(key))
+            }
+            return nil // Wouldn't happen
+        }
+    }
+
+    func key(index: Int) -> JSONKey {
+        pthread_mutex_lock(&mutex)
+        if computedKeys == nil {
+            computedKeys = computeKeys()
+        }
+        pthread_mutex_unlock(&mutex)
+        return computedKeys[index] ?? JSONKey(stringValue: "<coding key unknown>")
+    }
+}
+
+final class LazyJSONKey : CodingKey {
+    let manager: JSONKeyManager
+    let index: Int
+    init(manager: JSONKeyManager, index: Int) {
+        self.manager = manager
+        self.index = index
+    }
+
+    init?(stringValue: String) {
+        fatalError()
+    }
+
+    init?(intValue: Int) {
+        fatalError()
+    }
+
+    var stringValue: String {
+        return manager.key(index: index).stringValue
+    }
+
+    var intValue: Int? {
+        return manager.key(index: index).intValue
+    }
+}
+
+final class JSONKey : CodingKey {
     public var stringValue: String
     public var intValue: Int?
 
@@ -618,6 +674,17 @@ struct JSONKey : CodingKey {
     static let `super` = JSONKey(stringValue: "super")!
 }
 
+private func createKeyArray(size: Int, value: Value) -> [LazyJSONKey] {
+    let manager = JSONKeyManager(value: value)
+    var keys: ContiguousArray<LazyJSONKey> = []
+    keys.reserveCapacity(size)
+    for i in 0..<size {
+        let key = LazyJSONKey(manager: manager, index: i)
+        keys.append(key)
+    }
+    return Array(keys)
+}
+
 private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var currentValue: JNTDecoder
     let root: JNTDecoder
@@ -631,7 +698,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     var codingPath: [CodingKey] {
-        return computeCodingPath(value: currentValue)
+        return createKeyArray(size: decoder.containers.containers.count, value: currentValue)
     }
 
     fileprivate init(decoder: __JSONDecoder, value: Value) throws {
@@ -656,7 +723,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
     mutating func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
         currentValue = try valueFromIterator()
-        let decoded = try decoder.unbox(currentValue, as: T.self)
+        let decoded = try decoder.unbox(currentValue, as: type)
         advanceArray()
         return decoded
     }
@@ -688,7 +755,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
     mutating public func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> {
         currentValue = try valueFromIterator()
-        let container = try decoder.unboxNestedContainer(value: currentValue, keyedBy: type)
+        let container = try decoder.unboxNestedContainer(value: currentValue, keyedBy: type, index: .arrayIndex(currentIndex))
         advanceArray()
         return container
     }
@@ -820,7 +887,7 @@ private func throwErrorIfNecessary(_ value: Value) throws {
 
 private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
     var codingPath: [CodingKey] {
-        return computeCodingPath(value: value)
+        return createKeyArray(size: decoder.containers.containers.count, value: value)
     }
 
     unowned(unsafe) private let decoder: __JSONDecoder
@@ -954,7 +1021,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: K) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
-        return try decoder.unboxNestedContainer(value: subValue, keyedBy: type)
+        return try decoder.unboxNestedContainer(value: subValue, keyedBy: type, index: .arrayIndex(-1))
     }
 
     func nestedUnkeyedContainer(forKey key: K) throws -> UnkeyedDecodingContainer {
@@ -1071,7 +1138,7 @@ extension ContiguousArray: DummyCreatable where Element: Decodable {
 extension ContiguousArray: AnyArray where Element: Decodable {
     fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
         try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
-        decoder.containers.push(container: value)
+        decoder.containers.push(container: value, index: .arrayIndex(0))
         defer { decoder.containers.popContainer() }
         let count = JNTDocumentGetArrayCount(value)
 
