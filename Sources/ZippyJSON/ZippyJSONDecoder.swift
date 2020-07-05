@@ -84,7 +84,7 @@ public final class ZippyJSONDecoder {
             var success = false
             let value = JNTDocumentFromJSON(context, bytes.baseAddress!, data.count, convertCase, &retryReason, &success)
             if success {
-                let decoder = __JSONDecoder(value: value, containers: JSONDecodingStorage(), keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy, userInfo: userInfo)
+                let decoder = __JSONDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy, userInfo: userInfo)
                 if JNTErrorDidOccur(context) {
                     throw swiftErrorFromError(context)
                 }
@@ -256,12 +256,6 @@ final private class JSONDecodingStorage {
 
     fileprivate init() {
     }
-    
-    fileprivate func createCopy() -> JSONDecodingStorage {
-        let copy = JSONDecodingStorage()
-        copy.containers = containers
-        return copy
-    }
 
     fileprivate var topContainer: Value {
         precondition(!self.containers.isEmpty, "Empty container stack.")
@@ -316,11 +310,10 @@ final private class __JSONDecoder: Decoder {
     var swiftError: Error?
     let arrayTypeCache = ArrayTypeCache()
 
-    fileprivate var containers: JSONDecodingStorage
+    fileprivate var containers = JSONDecodingStorage()
 
-    init(value: Value, containers: JSONDecodingStorage, keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy, dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy, dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy, nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy, userInfo: [CodingUserInfoKey : Any]) {
+    init(value: Value, keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy, dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy, dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy, nonConformingFloatDecodingStrategy: ZippyJSONDecoder.NonConformingFloatDecodingStrategy, userInfo: [CodingUserInfoKey : Any]) {
         self.value = value
-        self.containers = containers
         self.keyDecodingStrategy = keyDecodingStrategy
         self.userInfo = userInfo
         if case .convertFromSnakeCase = keyDecodingStrategy {
@@ -450,9 +443,6 @@ final private class __JSONDecoder: Decoder {
     }
 
     fileprivate func unbox_(_ value: Value, as type: Decodable.Type) throws -> Any {
-        containers.push(container: value)
-        defer { containers.popContainer() }
-        
         if type == Date.self || type == NSDate.self {
             return try unbox(value, as: Date.self)
         } else if type == Data.self || type == NSData.self {
@@ -471,6 +461,8 @@ final private class __JSONDecoder: Decoder {
         } else if let dummy = arrayTypeCache.dummyForType(type) {
             return try dummy.create(value: value, decoder: self)
         } else {
+            containers.push(container: value)
+            defer { containers.popContainer() }
             return try type.init(from: self)
         }
     }
@@ -565,27 +557,15 @@ extension __JSONDecoder {
     // End
 
     fileprivate func unboxNestedUnkeyedContainer(value: Value) throws -> UnkeyedDecodingContainer {
-        containers.push(container: value)
-        defer {
-            containers.popContainer()
-        }
         return try JSONUnkeyedDecoder(decoder: self, value: value)
     }
 
     fileprivate func unboxSuper(_ value: Value) -> Decoder {
-        containers.push(container: value)
-        defer {
-            containers.popContainer()
-        }
-        return __JSONDecoder(value: value, containers: containers.createCopy(), keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy, userInfo: userInfo)
+        return __JSONDecoder(value: value, keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy, userInfo: userInfo)
     }
 
     fileprivate func unboxNestedContainer<NestedKey>(value: Value, keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
-        containers.push(container: value)
-        defer {
-            containers.popContainer()
-        }
-		return KeyedDecodingContainer(try JSONKeyedDecoder<NestedKey>(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
+		return KeyedDecodingContainer(try JSONKeyedDecoder<NestedKey>(decoder: self, value: value, convertToCamel: convertToCamel))
     }
 }
 
@@ -829,7 +809,7 @@ private func throwErrorIfNecessary(_ value: Value) throws {
 
 private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
     var codingPath: [CodingKey] {
-        return computeCodingPath(value: value)
+        return decoder.codingPath
     }
 
     private let decoder: __JSONDecoder
