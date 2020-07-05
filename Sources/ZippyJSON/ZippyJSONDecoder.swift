@@ -656,7 +656,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
     mutating func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
         currentValue = try valueFromIterator()
-        let decoded = try decoder.unbox(currentValue, as: T.self)
+        let decoded = try decoder.unbox(currentValue, as: type)
         advanceArray()
         return decoded
     }
@@ -948,7 +948,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
-        return try decoder.unbox(subValue, as: T.self)
+        return try decoder.unbox(subValue, as: type)
     }
     // End
 
@@ -982,7 +982,7 @@ extension __JSONDecoder : SingleValueDecodingContainer {
     }
 
     func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
-        return try unbox(containers.topContainer, as: T.self)
+        return try unbox(containers.topContainer, as: type)
     }
 
     // SingleValueBegin
