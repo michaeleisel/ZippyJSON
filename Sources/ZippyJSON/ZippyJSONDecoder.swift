@@ -93,12 +93,12 @@ public final class ZippyJSONDecoder {
             if success {
                 let decoder = __JSONDecoder(value: value, containers: JSONDecodingStorage(), keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy, userInfo: userInfo)
                 if JNTErrorDidOccur(context) {
-                    throw swiftErrorFromError(context, decoder: decoder)
+                    throw swiftErrorFromError(context, decoder: decoder, breadcrumb: .none)
                 }
-                let result = try decoder.unbox(value, as: type)
+                let result = try decoder.unbox(value, as: type, breadcrumb: .none)
                 
                 if JNTErrorDidOccur(context) {
-                    throw swiftErrorFromError(context, decoder: decoder)
+                    throw swiftErrorFromError(context, decoder: decoder, breadcrumb: .none)
                 }
                 return result
             } else {
@@ -230,11 +230,11 @@ public final class ZippyJSONDecoder {
     }
 }
 
-fileprivate func swiftErrorFromError(_ context: ContextPointer, decoder: __JSONDecoder/*, breadcrumb: Breadcrumb*/) -> Error {
+fileprivate func swiftErrorFromError(_ context: ContextPointer, decoder: __JSONDecoder, breadcrumb: Breadcrumb) -> Error {
     var error: Error? = nil
     JNTProcessError(context) { (description, type, value, key) in
         let debugDescription = String(utf8String: description!)!
-        let path: [JSONKey] = [] //computeCodingPath(breadcrumb: breadcrumb)
+        let path: [JSONKey] = computeCodingPath(breadcrumb: breadcrumb)
         let keyString = key.map { String(utf8String: $0) ?? "" } ?? ""
         let key = JSONKey(stringValue: keyString)!
         let instanceType = Any.self
@@ -259,7 +259,7 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer, decoder: __JSOND
 }
 
 final private class JSONDecodingStorage {
-    private(set) fileprivate var containers: [Value] = []
+    private(set) fileprivate var containers: [(Value, Breadcrumb)] = []
 
     fileprivate init() {
     }
@@ -270,13 +270,13 @@ final private class JSONDecodingStorage {
         return copy
     }
 
-    fileprivate var topContainer: Value {
+    fileprivate var topContainer: (Value, Breadcrumb) {
         precondition(!self.containers.isEmpty, "Empty container stack.")
         return self.containers.last!
     }
 
-    fileprivate func push(container: Value) {
-        self.containers.append(container)
+    fileprivate func push(container: Value, breadcrumb: Breadcrumb) {
+        self.containers.append((container, breadcrumb))
     }
 
     fileprivate func popContainer() {
@@ -302,6 +302,7 @@ final private class JSONDecodingStorage {
         }
     }
     reversedPath.reverse()
+    return reversedPath
 }
 
 @inline(__always) private func computeCodingPath(value: Value, decoder: __JSONDecoder) -> [JSONKey] {
@@ -347,7 +348,7 @@ final private class __JSONDecoder: Decoder {
     var errorType: Any.Type? = nil
     var userInfo: [CodingUserInfoKey : Any]
     var codingPath: [CodingKey] {
-        return computeCodingPath(value: containers.topContainer, decoder: self)
+        return computeCodingPath(value: containers.topContainer.0, decoder: self)
     }
     let value: Value
     let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
@@ -377,11 +378,13 @@ final private class __JSONDecoder: Decoder {
 
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
 		// Disable caching for now
-        return KeyedDecodingContainer(try JSONKeyedDecoder<Key>(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel, breadcrumb: .none))
+        let (value, breadcrumb) = containers.topContainer
+        return KeyedDecodingContainer(try JSONKeyedDecoder<Key>(decoder: self, value: value, convertToCamel: convertToCamel, breadcrumb: breadcrumb))
     }
     
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
-        return try JSONUnkeyedDecoder(decoder: self, value: containers.topContainer, breadcrumb: .none)
+        let (value, breadcrumb) = containers.topContainer
+        return try JSONUnkeyedDecoder(decoder: self, value: value, breadcrumb: breadcrumb)
     }
 
     public func singleValueContainer() throws -> SingleValueDecodingContainer {
@@ -414,10 +417,10 @@ final private class __JSONDecoder: Decoder {
         return decimal
     }
 
-    fileprivate func unbox(_ value: Value, as type: Date.Type) throws -> Date {
+    fileprivate func unbox(_ value: Value, as type: Date.Type, breadcrumb: Breadcrumb) throws -> Date {
         switch dateDecodingStrategy {
         case .deferredToDate:
-            containers.push(container: value)
+            containers.push(container: value, breadcrumb: breadcrumb)
             defer { containers.popContainer() }
             return try Date(from: self)
 
@@ -442,13 +445,13 @@ final private class __JSONDecoder: Decoder {
             }
             return date
         case .custom(let closure):
-            containers.push(container: value)
+            containers.push(container: value, breadcrumb: breadcrumb)
             defer { containers.popContainer() }
             return try closure(self)
         }
     }
 
-    fileprivate func unbox(_ value: Value, as type: Data.Type) throws -> Data {
+    fileprivate func unbox(_ value: Value, as type: Data.Type, breadcrumb: Breadcrumb) throws -> Data {
         switch dataDecodingStrategy {
         case .base64:
             let string = try unbox(value, as: String.self)
@@ -459,24 +462,24 @@ final private class __JSONDecoder: Decoder {
         case .deferredToData:
             return try Data(from: self)
         case .custom(let closure):
-            containers.push(container: value)
+            containers.push(container: value, breadcrumb: breadcrumb)
             defer { containers.popContainer() }
             return try closure(self)
         }
     }
 
-    fileprivate func unbox<T>(_ value: Value, as type: DictionaryWithoutKeyConversion.Type) throws -> T {
+    fileprivate func unbox<T>(_ value: Value, as type: DictionaryWithoutKeyConversion.Type, breadcrumb: Breadcrumb) throws -> T {
         var result = [String : Any]()
         var innerError: Error?
         JNTDocumentForAllKeyValuePairs(value, { key, subValue in
             let keyString = String(cString: key!)
             do {
-                result[keyString] = try self.unbox_(subValue, as: type.elementType)
+                result[keyString] = try self.unbox_(subValue, as: type.elementType, breadcrumb: breadcrumb)
             } catch {
                 innerError = error
             }
         })
-        try throwErrorIfNecessary(value, decoder: self)
+        try throwErrorIfNecessary(value, decoder: self, breadcrumb: breadcrumb)
         if let innerError = innerError {
             throw innerError
         }
@@ -487,18 +490,18 @@ final private class __JSONDecoder: Decoder {
         }
     }
 
-    fileprivate func unbox<T : Decodable>(_ value: Value, as type: T.Type) throws -> T {
-        return (try unbox_(value, as: type)) as! T
+    fileprivate func unbox<T : Decodable>(_ value: Value, as type: T.Type, breadcrumb: Breadcrumb) throws -> T {
+        return (try unbox_(value, as: type, breadcrumb: breadcrumb)) as! T
     }
 
-    fileprivate func unbox_(_ value: Value, as type: Decodable.Type) throws -> Any {
-        containers.push(container: value)
+    fileprivate func unbox_(_ value: Value, as type: Decodable.Type, breadcrumb: Breadcrumb) throws -> Any {
+        containers.push(container: value, breadcrumb: breadcrumb)
         defer { containers.popContainer() }
         
         if type == Date.self || type == NSDate.self {
-            return try unbox(value, as: Date.self)
+            return try unbox(value, as: Date.self, breadcrumb: breadcrumb)
         } else if type == Data.self || type == NSData.self {
-            return try unbox(value, as: Data.self)
+            return try unbox(value, as: Data.self, breadcrumb: breadcrumb)
         } else if type == Decimal.self || type == NSDecimalNumber.self {
             return try unbox(value, as: Decimal.self)
         } else if type == URL.self || type == NSURL.self {
@@ -509,9 +512,9 @@ final private class __JSONDecoder: Decoder {
              }
             return url
         } else if let stringKeyedDictType = type as? DictionaryWithoutKeyConversion.Type {
-            return try unbox(value, as: stringKeyedDictType)
+            return try unbox(value, as: stringKeyedDictType, breadcrumb: breadcrumb)
         } else if let dummy = arrayTypeCache.dummyForType(type) {
-            return try dummy.create(value: value, decoder: self)
+            return try dummy.create(value: value, decoder: self, breadcrumb: breadcrumb)
         } else {
             return try type.init(from: self)
         }
@@ -607,15 +610,15 @@ extension __JSONDecoder {
     // End
 
     fileprivate func unboxNestedUnkeyedContainer(value: Value, breadcrumb: Breadcrumb) throws -> UnkeyedDecodingContainer {
-        containers.push(container: value)
+        containers.push(container: value, breadcrumb: breadcrumb)
         defer {
             containers.popContainer()
         }
         return try JSONUnkeyedDecoder(decoder: self, value: value, breadcrumb: breadcrumb)
     }
 
-    fileprivate func unboxSuper(_ value: Value) -> Decoder {
-        containers.push(container: value)
+    fileprivate func unboxSuper(_ value: Value, breadcrumb: Breadcrumb) -> Decoder {
+        containers.push(container: value, breadcrumb: breadcrumb)
         defer {
             containers.popContainer()
         }
@@ -623,11 +626,11 @@ extension __JSONDecoder {
     }
 
     fileprivate func unboxNestedContainer<NestedKey>(value: Value, keyedBy type: NestedKey.Type, breadcrumb: Breadcrumb) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
-        containers.push(container: value)
+        containers.push(container: value, breadcrumb: breadcrumb)
         defer {
             containers.popContainer()
         }
-        return KeyedDecodingContainer(try JSONKeyedDecoder<NestedKey>(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel, breadcrumb: breadcrumb))
+        return KeyedDecodingContainer(try JSONKeyedDecoder<NestedKey>(decoder: self, value: value, convertToCamel: convertToCamel, breadcrumb: breadcrumb))
     }
 }
 
@@ -687,6 +690,12 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer, Breadcrumbable {
         self.breadcrumb = breadcrumb
     }
 
+    func unkeyedThrowErrorIfNecessary(_ value: Value, decoder: __JSONDecoder) throws {
+        guard !JNTDocumentErrorDidOccur(value) else {
+            try throwErrorIfNecessary(value, decoder: decoder, breadcrumb: .array(self, currentIndex))
+        }
+    }
+
     mutating func decodeNil() throws -> Bool {
         currentValue = try valueFromIterator()
         let isNil = JNTDocumentDecodeNil(currentValue)
@@ -698,7 +707,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer, Breadcrumbable {
 
     mutating func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
         currentValue = try valueFromIterator()
-        let decoded = try decoder.unbox(currentValue, as: T.self)
+        let decoded = try decoder.unbox(currentValue, as: T.self, breadcrumb: .array(self, currentIndex))
         advanceArray()
         return decoded
     }
@@ -744,7 +753,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer, Breadcrumbable {
 
     mutating func superDecoder() throws -> Decoder {
         currentValue = try valueFromIterator()
-        let container = decoder.unboxSuper(currentValue)
+        let container = decoder.unboxSuper(currentValue, breadcrumb: .array(self, currentIndex))
         advanceArray()
         return container
     }
@@ -852,9 +861,9 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer, Breadcrumbable {
 }
 
 @inline(__always)
-private func throwErrorIfNecessary(_ value: Value, decoder: __JSONDecoder/*, breadcrumb: Breadcrumb*/) throws {
+private func throwErrorIfNecessary(_ value: Value, decoder: __JSONDecoder, breadcrumb: Breadcrumb) throws {
     guard !JNTDocumentErrorDidOccur(value) else {
-        let error = swiftErrorFromError(JNTGetContext(value), decoder: decoder)//, breadcrumb: .none)
+        let error = swiftErrorFromError(JNTGetContext(value), decoder: decoder, breadcrumb: breadcrumb)
         JNTClearError(JNTGetContext(value))
         throw error
     }
@@ -906,16 +915,23 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         }
     }
 
+    func keyedThrowErrorIfNecessary(_ value: Value, decoder: __JSONDecoder) throws {
+        guard !JNTDocumentErrorDidOccur(value) else {
+            let key = JNTDocumentKeyFromIterator(iterator)!
+            try throwErrorIfNecessary(value, decoder: decoder, breadcrumb: .object(self, key))
+        }
+    }
+
     private func fetchValue(keyPointer: UnsafePointer<Int8>) throws -> Value {
         let result = JNTDocumentFetchValue(value, keyPointer, &iterator)
-        try throwErrorIfNecessary(value, decoder: decoder)
+        try keyedThrowErrorIfNecessary(value, decoder: decoder)
         return result
     }
 
     func decodeNil(forKey key: K) throws -> Bool {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
         let bool = JNTDocumentDecodeNil(subValue)
-        try throwErrorIfNecessary(subValue, decoder: decoder)
+        try keyedThrowErrorIfNecessary(subValue, decoder: decoder)
         return bool
     }
 
@@ -989,28 +1005,30 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         let subValue: Value = try key.stringValue.withCString(fetchValue)
         return try decoder.unbox(subValue, as: UInt.self)
     }
+    // End
 
     fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
-        return try decoder.unbox(subValue, as: T.self)
+        let key = JNTDocumentKeyFromIterator(iterator)!
+        return try decoder.unbox(subValue, as: T.self, breadcrumb: .object(self, key))
     }
-    // End
 
     func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: K) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
-        let key = JNTDocumentKeyFromIterator(&iterator)!
+        let key = JNTDocumentKeyFromIterator(iterator)!
         return try decoder.unboxNestedContainer(value: subValue, keyedBy: type, breadcrumb: .object(self, key))
     }
 
     func nestedUnkeyedContainer(forKey key: K) throws -> UnkeyedDecodingContainer {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
-        let string = JNTDocumentKeyFromIterator(&iterator)!
+        let string = JNTDocumentKeyFromIterator(iterator)!
         return try decoder.unboxNestedUnkeyedContainer(value: subValue, breadcrumb: .object(self, string))
     }
 
     private func _superDecoder(forKey key: CodingKey) throws -> Decoder {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
-        return decoder.unboxSuper(subValue)
+        let key = JNTDocumentKeyFromIterator(iterator)!
+        return decoder.unboxSuper(subValue, breadcrumb: .object(self, key))
     }
 
     func superDecoder() throws -> Decoder {
@@ -1024,75 +1042,76 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
 extension __JSONDecoder : SingleValueDecodingContainer {
     func decodeNil() -> Bool {
-        return JNTDocumentDecodeNil(containers.topContainer)
+        return JNTDocumentDecodeNil(containers.topContainer.0)
     }
 
     func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
-        return try unbox(containers.topContainer, as: T.self)
+        let (value, breadcrumb) = containers.topContainer
+        return try unbox(value, as: T.self, breadcrumb: breadcrumb)
     }
 
     // SingleValueBegin
     public func decode(_ type: UInt8.Type) throws -> UInt8 {
-        return try unbox(containers.topContainer, as: UInt8.self)
+        return try unbox(containers.topContainer.0, as: UInt8.self)
     }
 
     public func decode(_ type: UInt16.Type) throws -> UInt16 {
-        return try unbox(containers.topContainer, as: UInt16.self)
+        return try unbox(containers.topContainer.0, as: UInt16.self)
     }
 
     public func decode(_ type: UInt32.Type) throws -> UInt32 {
-        return try unbox(containers.topContainer, as: UInt32.self)
+        return try unbox(containers.topContainer.0, as: UInt32.self)
     }
 
     public func decode(_ type: UInt64.Type) throws -> UInt64 {
-        return try unbox(containers.topContainer, as: UInt64.self)
+        return try unbox(containers.topContainer.0, as: UInt64.self)
     }
 
     public func decode(_ type: Int8.Type) throws -> Int8 {
-        return try unbox(containers.topContainer, as: Int8.self)
+        return try unbox(containers.topContainer.0, as: Int8.self)
     }
 
     public func decode(_ type: Int16.Type) throws -> Int16 {
-        return try unbox(containers.topContainer, as: Int16.self)
+        return try unbox(containers.topContainer.0, as: Int16.self)
     }
 
     public func decode(_ type: Int32.Type) throws -> Int32 {
-        return try unbox(containers.topContainer, as: Int32.self)
+        return try unbox(containers.topContainer.0, as: Int32.self)
     }
 
     public func decode(_ type: Int64.Type) throws -> Int64 {
-        return try unbox(containers.topContainer, as: Int64.self)
+        return try unbox(containers.topContainer.0, as: Int64.self)
     }
 
     public func decode(_ type: Bool.Type) throws -> Bool {
-        return try unbox(containers.topContainer, as: Bool.self)
+        return try unbox(containers.topContainer.0, as: Bool.self)
     }
 
     public func decode(_ type: String.Type) throws -> String {
-        return try unbox(containers.topContainer, as: String.self)
+        return try unbox(containers.topContainer.0, as: String.self)
     }
 
     public func decode(_ type: Double.Type) throws -> Double {
-        return try unbox(containers.topContainer, as: Double.self)
+        return try unbox(containers.topContainer.0, as: Double.self)
     }
 
     public func decode(_ type: Float.Type) throws -> Float {
-        return try unbox(containers.topContainer, as: Float.self)
+        return try unbox(containers.topContainer.0, as: Float.self)
     }
 
     public func decode(_ type: Int.Type) throws -> Int {
-        return try unbox(containers.topContainer, as: Int.self)
+        return try unbox(containers.topContainer.0, as: Int.self)
     }
 
     public func decode(_ type: UInt.Type) throws -> UInt {
-        return try unbox(containers.topContainer, as: UInt.self)
+        return try unbox(containers.topContainer.0, as: UInt.self)
     }
 
     // End
 }
 
 fileprivate protocol AnyArray: DummyCreatable {
-    func create(value: Value, decoder: __JSONDecoder) throws -> Self
+    func create(value: Value, decoder: __JSONDecoder, breadcrumb: Breadcrumb) throws -> Self
 }
 
 extension Array: DummyCreatable where Element: Decodable {
@@ -1102,8 +1121,8 @@ extension Array: DummyCreatable where Element: Decodable {
 }
 
 extension Array: AnyArray where Element: Decodable {
-    fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
-        let array = try ContiguousArray<Element>().create(value: value, decoder: decoder)
+    fileprivate func create(value: Value, decoder: __JSONDecoder, breadcrumb: Breadcrumb) throws -> Self {
+        let array = try ContiguousArray<Element>().create(value: value, decoder: decoder, breadcrumb: breadcrumb)
         return Array(array)
     }
 }
@@ -1114,10 +1133,18 @@ extension ContiguousArray: DummyCreatable where Element: Decodable {
     }
 }
 
+private class ContiguousArrayBreadcrumbable: Breadcrumbable {
+    let breadcrumb: Breadcrumb
+    init(breadcrumb: Breadcrumb) {
+        self.breadcrumb = breadcrumb
+    }
+}
+
 extension ContiguousArray: AnyArray where Element: Decodable {
-    fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
+    fileprivate func create(value: Value, decoder: __JSONDecoder, breadcrumb: Breadcrumb) throws -> Self {
         try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
-        decoder.containers.push(container: value)
+        let breadcrumbable = ContiguousArrayBreadcrumbable(breadcrumb: breadcrumb)
+        decoder.containers.push(container: value, breadcrumb: breadcrumb)
         defer { decoder.containers.popContainer() }
         let count = JNTDocumentGetArrayCount(value)
 
@@ -1126,16 +1153,16 @@ extension ContiguousArray: AnyArray where Element: Decodable {
         var array: ContiguousArray<Element> = ContiguousArray()
         array.reserveCapacity(count)
         if let innerDummy = decoder.arrayTypeCache.dummyForType(Element.self) {
-            for _ in 0..<count {
+            for i in 0..<count {
                 let currentValue = JNTDecoderFromIterator(&iterator, root)
-                let element = try innerDummy.create(value: currentValue, decoder: decoder) as! Element
+                let element = try innerDummy.create(value: currentValue, decoder: decoder, breadcrumb: .array(breadcrumbable, i)) as! Element
                 array.append(element)
                 JNTAdvanceIterator(&iterator, root)
             }
         } else {
-            for _ in 0..<count {
+            for i in 0..<count {
                 let currentValue = JNTDecoderFromIterator(&iterator, root)
-                let element = try decoder.unbox(currentValue, as: Element.self)
+                let element = try decoder.unbox(currentValue, as: Element.self, breadcrumb: .array(breadcrumbable, i))
                 array.append(element)
                 JNTAdvanceIterator(&iterator, root)
             }
