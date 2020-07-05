@@ -2,8 +2,8 @@
 <% types.each do |type| %>
     <%= inline %>public mutating func decode(_ type: <%= type %>.Type) throws -> <%= type %> {
         currentValue = try valueFromIterator()
-        let decoded = try decoder.unbox(currentValue, as: <%= type %>.self)
-        try unkeyedThrowErrorIfNecessary(value, decoder: self)
+        let decoded = decoder.unbox(currentValue, as: <%= type %>.self)
+        try unkeyedThrowErrorIfNecessary(currentValue, decoder: decoder)
         advanceArray()
         return decoded
     }
@@ -21,7 +21,7 @@
 <% types.each do |type| %>
     public func decode(_ type: <%= type %>.Type) throws -> <%= type %> {
         let value = unbox(containers.topContainer.0, as: <%= type %>.self)
-        try throwErrorIfNecessary(value, decoder: self, breadcrumb: containers.topContainer.1)
+        try throwErrorIfNecessary(containers.topContainer.0, decoder: self, breadcrumb: containers.topContainer.1)
         return value
     }
 
@@ -31,7 +31,7 @@
     <%= inline %>fileprivate func decode<%= type == "T" ? "<T : Decodable>" : "" %>(_ type: <%= type %>.Type, forKey key: K) <%= throws(type) %>-> <%= type %> {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
         let result = decoder.unbox(subValue, as: <%= type %>.self)
-        try keyedThrowErrorIfNecessary(value, decoder: self)
+        try keyedThrowErrorIfNecessary(value, decoder: decoder)
         return result
     }
 
