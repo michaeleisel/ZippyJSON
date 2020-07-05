@@ -306,9 +306,7 @@ final private class Wrapper<K: CodingKey> {
 final private class __JSONDecoder: Decoder {
     var errorType: Any.Type? = nil
     var userInfo: [CodingUserInfoKey : Any]
-    var codingPath: [CodingKey] {
-        return computeCodingPath(value: containers.topContainer)
-    }
+    var codingPath: [CodingKey] = []
     let value: Value
     let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
     let convertToCamel: Bool
@@ -625,13 +623,12 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     var iterator: JNTArrayIterator
     private let decoder: __JSONDecoder
     var currentIndex: Int
+    var codingPath: [CodingKey] {
+        return decoder.codingPath
+    }
     var isAtEnd: Bool {
         // count is never nil in practice, so the fallback value will never be hit
         currentIndex >= (count ?? 0)
-    }
-
-    var codingPath: [CodingKey] {
-        return computeCodingPath(value: currentValue)
     }
 
     fileprivate init(decoder: __JSONDecoder, value: Value) throws {
@@ -655,6 +652,10 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     mutating func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
+        decoder.codingPath.append(JSONKey(index: currentIndex))
+        defer {
+            decoder.codingPath.removeLast()
+        }
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: type)
         advanceArray()
@@ -687,6 +688,10 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     mutating public func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> {
+        decoder.codingPath.append(JSONKey(index: currentIndex))
+        defer {
+            decoder.codingPath.removeLast()
+        }
         currentValue = try valueFromIterator()
         let container = try decoder.unboxNestedContainer(value: currentValue, keyedBy: type)
         advanceArray()
@@ -694,6 +699,10 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     mutating func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
+        decoder.codingPath.append(JSONKey(index: currentIndex))
+        defer {
+            decoder.codingPath.removeLast()
+        }
         currentValue = try valueFromIterator()
         let container = try decoder.unboxNestedUnkeyedContainer(value: currentValue)
         advanceArray()
