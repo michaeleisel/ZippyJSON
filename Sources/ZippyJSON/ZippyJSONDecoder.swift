@@ -288,10 +288,11 @@ final private class JSONDecodingStorage {
 @inline(__always) private func computeCodingPath(breadcrumb origBreadcrumb: Breadcrumb) -> [JSONKey] {
     var reversedPath: [JSONKey] = []
     var currentBreadcrumb: Breadcrumb = origBreadcrumb
-    while true {
+    var keepGoing = true
+    while keepGoing {
         switch currentBreadcrumb {
         case .none:
-            break
+            keepGoing = false
         case .array(let breadcrumbable, let index):
             reversedPath.append(JSONKey(index: index))
             currentBreadcrumb = breadcrumbable.breadcrumb
