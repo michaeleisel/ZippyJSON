@@ -37,6 +37,13 @@ func isOnSimulator() -> Bool {
   #endif
 }
 
+private final class Weak<T: AnyObject> {
+    weak var value: T?
+    init(value: T) {
+        self.value = value
+    }
+}
+
 public final class ZippyJSONDecoder {
     @available(*, deprecated, message: "This flag is deprecated because full-precision parsing speed is now on par with imprecise, so it will just always use full-precision")
     public var zjd_fullPrecisionFloatParsing = true
@@ -85,13 +92,19 @@ public final class ZippyJSONDecoder {
             let value = JNTDocumentFromJSON(context, bytes.baseAddress!, data.count, convertCase, &retryReason, &success)
             if success {
                 let decoder = __JSONDecoder(value: value, containers: JSONDecodingStorage(), keyDecodingStrategy: keyDecodingStrategy, dataDecodingStrategy: dataDecodingStrategy, dateDecodingStrategy: dateDecodingStrategy, nonConformingFloatDecodingStrategy: nonConformingFloatDecodingStrategy, userInfo: userInfo)
+                defer {
+                    for weakManager in decoder.managers {
+                        guard let value = weakManager.value else { continue }
+                        value.computeActualKeysIfNecessary()
+                    }
+                }
                 if JNTErrorDidOccur(context) {
-                    throw swiftErrorFromError(context)
+                    throw swiftErrorFromError(context, decoder: decoder)
                 }
                 let result = try decoder.unbox(value, as: type)
                 
                 if JNTErrorDidOccur(context) {
-                    throw swiftErrorFromError(context)
+                    throw swiftErrorFromError(context, decoder: decoder)
                 }
                 return result
             } else {
@@ -223,11 +236,11 @@ public final class ZippyJSONDecoder {
     }
 }
 
-fileprivate func swiftErrorFromError(_ context: ContextPointer) -> Error {
+fileprivate func swiftErrorFromError(_ context: ContextPointer, decoder: __JSONDecoder) -> Error {
     var error: Error? = nil
     JNTProcessError(context) { (description, type, value, key) in
         let debugDescription = String(utf8String: description!)!
-        let path = computeCodingPath(value: value)
+        let path = computeCodingPath(value: value, decoder: decoder)
         let keyString = key.map { String(utf8String: $0) ?? "" } ?? ""
         let key = JSONKey(stringValue: keyString)!
         let instanceType = Any.self
@@ -278,7 +291,19 @@ final private class JSONDecodingStorage {
     }
 }
 
-private func computeCodingPath(value: Value) -> [JSONKey] {
+@inline(__always) private func computeCodingPath(value: Value, decoder: __JSONDecoder) -> [LazyJSONKey] {
+    let size = decoder.containers.containers.count
+    let manager = LazyJSONKeyManager.createManager(value: value, decoder: decoder, estimatedSize: size)
+    var codingPath: [LazyJSONKey] = []
+    codingPath.reserveCapacity(size)
+    for i in 0..<size {
+        let jsonKey = LazyJSONKey(index: i, manager: manager)
+        codingPath.append(jsonKey)
+    }
+    return codingPath
+}
+
+private func computeCodingPathInternal(value: Value) -> [JSONKey] {
     return JNTDocumentCodingPath(value).compactMap { element -> JSONKey? in
         if let index = element as? NSNumber {
             return JSONKey(index: index.intValue)
@@ -306,8 +331,9 @@ final private class Wrapper<K: CodingKey> {
 final private class __JSONDecoder: Decoder {
     var errorType: Any.Type? = nil
     var userInfo: [CodingUserInfoKey : Any]
+    fileprivate var managers: [Weak<LazyJSONKeyManager>] = []
     var codingPath: [CodingKey] {
-        return computeCodingPath(value: containers.topContainer)
+        return computeCodingPath(value: containers.topContainer, decoder: self)
     }
     let value: Value
     let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
@@ -436,7 +462,7 @@ final private class __JSONDecoder: Decoder {
                 innerError = error
             }
         })
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         if let innerError = innerError {
             throw innerError
         }
@@ -482,85 +508,85 @@ extension __JSONDecoder {
     // UnboxBegin
     fileprivate func unbox(_ value: Value, as type: UInt8.Type) throws -> UInt8 {
         let result = JNTDocumentDecode__uint8_t(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return result
     }
 
     fileprivate func unbox(_ value: Value, as type: UInt16.Type) throws -> UInt16 {
         let result = JNTDocumentDecode__uint16_t(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return result
     }
 
     fileprivate func unbox(_ value: Value, as type: UInt32.Type) throws -> UInt32 {
         let result = JNTDocumentDecode__uint32_t(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return result
     }
 
     fileprivate func unbox(_ value: Value, as type: UInt64.Type) throws -> UInt64 {
         let result = JNTDocumentDecode__uint64_t(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return result
     }
 
     fileprivate func unbox(_ value: Value, as type: Int8.Type) throws -> Int8 {
         let result = JNTDocumentDecode__int8_t(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return result
     }
 
     fileprivate func unbox(_ value: Value, as type: Int16.Type) throws -> Int16 {
         let result = JNTDocumentDecode__int16_t(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return result
     }
 
     fileprivate func unbox(_ value: Value, as type: Int32.Type) throws -> Int32 {
         let result = JNTDocumentDecode__int32_t(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return result
     }
 
     fileprivate func unbox(_ value: Value, as type: Int64.Type) throws -> Int64 {
         let result = JNTDocumentDecode__int64_t(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return result
     }
 
     fileprivate func unbox(_ value: Value, as type: Bool.Type) throws -> Bool {
         let result = JNTDocumentDecode__Bool(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return result
     }
 
     fileprivate func unbox(_ value: Value, as type: String.Type) throws -> String {
         let result = JNTDocumentDecode__String(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return String(utf8String: result!)!
     }
 
     fileprivate func unbox(_ value: Value, as type: Double.Type) throws -> Double {
         let result = JNTDocumentDecode__Double(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return result
     }
 
     fileprivate func unbox(_ value: Value, as type: Float.Type) throws -> Float {
         let result = JNTDocumentDecode__Float(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return result
     }
 
     fileprivate func unbox(_ value: Value, as type: Int.Type) throws -> Int {
         let result = JNTDocumentDecode__Int(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return result
     }
 
     fileprivate func unbox(_ value: Value, as type: UInt.Type) throws -> UInt {
         let result = JNTDocumentDecode__UInt(value)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: self)
         return result
     }
 
@@ -591,7 +617,83 @@ extension __JSONDecoder {
     }
 }
 
-struct JSONKey : CodingKey {
+private final class LazyJSONKeyManager {
+    var actualKeys: [JSONKey]?
+    var mutex: pthread_mutex_t = pthread_mutex_t()
+    var value: Value
+    let estimatedSize: Int
+    static let placeholder = JSONKey(stringValue: "", intValue: nil)
+    static func createManager(value: Value, decoder: __JSONDecoder, estimatedSize: Int) -> LazyJSONKeyManager {
+        let manager = LazyJSONKeyManager(value: value, estimatedSize: estimatedSize)
+        decoder.managers.append(Weak(value: manager))
+        return manager
+    }
+    private init(value: Value, estimatedSize: Int) {
+        self.value = value
+        self.estimatedSize = estimatedSize
+        pthread_mutex_init(&mutex, nil)
+    }
+    deinit {
+        pthread_mutex_destroy(&mutex)
+    }
+    func computeActualKeysIfNecessary() {
+        // In theory, the keys with a reference to this manager could've ended up on another thread, so use a lock
+        pthread_mutex_lock(&mutex)
+        defer {
+            pthread_mutex_unlock(&mutex)
+        }
+        if let _ = actualKeys {
+            return
+        }
+        actualKeys = computeCodingPathInternal(value: value)
+    }
+    func key(index: Int) -> JSONKey {
+        computeActualKeysIfNecessary()
+        guard let actualKeys = actualKeys else { return Self.placeholder }
+        let computedIndex = index + actualKeys.count - estimatedSize
+        guard 0 <= computedIndex && computedIndex < actualKeys.count else { return Self.placeholder }
+        return actualKeys[computedIndex]
+    }
+}
+
+/*extension LazyJSONKey: CustomStringConvertible {
+    var debugDescription: String {
+        let key = JSONKey(stringValue: stringValue, intValue: intValue)
+        return key.debugDescription
+    }
+}*/
+
+private struct LazyJSONKey : CodingKey {
+    private let index: Int
+    private let manager: LazyJSONKeyManager
+
+    init(index: Int, manager: LazyJSONKeyManager) {
+        self.index = index
+        self.manager = manager
+    }
+
+    public var stringValue: String {
+        return manager.key(index: index).stringValue
+    }
+
+    public var intValue: Int? {
+        return manager.key(index: index).intValue
+    }
+
+    init?(stringValue: String) {
+        fatalError()
+    }
+
+    init?(intValue: Int) {
+        fatalError()
+    }
+
+    init(stringValue: String, intValue: Int?) {
+        fatalError()
+    }
+}
+
+internal struct JSONKey : CodingKey {
     public var stringValue: String
     public var intValue: Int?
 
@@ -623,7 +725,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     let root: JNTDecoder
     var count: Int?
     var iterator: JNTArrayIterator
-    private unowned(unsafe) let decoder: __JSONDecoder
+    private unowned let decoder: __JSONDecoder
     var currentIndex: Int
     var isAtEnd: Bool {
         // count is never nil in practice, so the fallback value will never be hit
@@ -631,7 +733,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     var codingPath: [CodingKey] {
-        return computeCodingPath(value: currentValue)
+        return computeCodingPath(value: currentValue, decoder: decoder)
     }
 
     fileprivate init(decoder: __JSONDecoder, value: Value) throws {
@@ -682,7 +784,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
     static func ensureValueIsArray(value: Value) throws {
         guard JNTDocumentValueIsArray(value) else {
-            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: computeCodingPath(value: value), debugDescription: "Tried to unbox array, but it wasn't an array"))
+            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: [], debugDescription: "Tried to unbox array, but it wasn't an array"))
         }
     }
 
@@ -810,9 +912,9 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 }
 
 @inline(__always)
-private func throwErrorIfNecessary(_ value: Value) throws {
+private func throwErrorIfNecessary(_ value: Value, decoder: __JSONDecoder) throws {
     guard !JNTDocumentErrorDidOccur(value) else {
-        let error = swiftErrorFromError(JNTGetContext(value))
+        let error = swiftErrorFromError(JNTGetContext(value), decoder: decoder)
         JNTClearError(JNTGetContext(value))
         throw error
     }
@@ -820,10 +922,10 @@ private func throwErrorIfNecessary(_ value: Value) throws {
 
 private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
     var codingPath: [CodingKey] {
-        return computeCodingPath(value: value)
+        return computeCodingPath(value: value, decoder: decoder)
     }
 
-    unowned(unsafe) private let decoder: __JSONDecoder
+    unowned private let decoder: __JSONDecoder
 
     typealias Key = K
 
@@ -864,14 +966,14 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     private func fetchValue(keyPointer: UnsafePointer<Int8>) throws -> Value {
         let result = JNTDocumentFetchValue(value, keyPointer, &iterator)
-        try throwErrorIfNecessary(value)
+        try throwErrorIfNecessary(value, decoder: decoder)
         return result
     }
 
     func decodeNil(forKey key: K) throws -> Bool {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
         let bool = JNTDocumentDecodeNil(subValue)
-        try throwErrorIfNecessary(subValue)
+        try throwErrorIfNecessary(subValue, decoder: decoder)
         return bool
     }
 
