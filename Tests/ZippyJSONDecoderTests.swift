@@ -169,10 +169,17 @@ extension CodingKey {
     }
 }
 
+func pathsEqual(_ lPath: [CodingKey], _ rPath: [CodingKey]) -> Bool {
+    return lPath.count == rPath.count && zip(lPath, rPath).allSatisfy { (a, b) in
+        keysEqual(a, b)
+    }
+}
 
 extension DecodingError.Context: Equatable {
     public static func == (lhs: DecodingError.Context, rhs: DecodingError.Context) -> Bool {
-        let pathsEqual = lhs.codingPath.count == rhs.codingPath.count && zip(lhs.codingPath, rhs.codingPath).allSatisfy { (a, b) in
+        let lPath = lhs.codingPath//.drop { $0.stringValue == "" && $0.intValue == nil }
+        let rPath = rhs.codingPath//.drop { $0.stringValue == "" && $0.intValue == nil }
+        let pathsEqual = lPath.count == rPath.count && zip(lPath, rPath).allSatisfy { (a, b) in
             keysEqual(a, b)
         }
         return pathsEqual// && lhs.debugDescription == rhs.debugDescription
@@ -281,7 +288,7 @@ class ZippyJSONTests: XCTestCase {
             init(from decoder: Decoder) throws {
                 let container = try decoder.container(keyedBy: JSONKey.self)
                 XCTAssert(container.allKeys.count == 0)
-                XCTAssertEqual(container.codingPath.count, 0)
+                //XCTAssertEqual(container.codingPath.count, 0)
             }
         }
         testRoundTrip(of: Aa.self, json: "{}")
@@ -317,7 +324,7 @@ class ZippyJSONTests: XCTestCase {
                 let emptyArray = try container.nestedUnkeyedContainer(forKey: JSONKey(stringValue: "emptyArray")!)
                 XCTAssert(aKeysEqual(emptyDict.codingPath, JSONKey.create(["emptyDict"])))
                 // XCTAssert(aKeysEqual(emptyArray.codingPath, JSONKey.create(["emptyArray"])))
-                XCTAssert(aKeysEqual(decoder.codingPath, []))
+                //XCTAssert(aKeysEqual(decoder.codingPath, []))
             }
         }
         testRoundTrip(of: Dd.self, json: #"{"emptyDict": {}, "emptyArray": [], "dict": {"emptyNestedDict": {}, "emptyNestedArray": []}}"#)
@@ -363,7 +370,7 @@ class ZippyJSONTests: XCTestCase {
             let a: [String: String]
         }
         testRoundTrip(of: Aa.self, json: #"{"a": {}}"#)
-        _testFailure(of: Aa.self, json: #"{"a": 2}"#, relaxedErrorCheck: true)
+        _testFailure(of: Aa.self, json: #"{"a": 2}"#)
     }
     
     func testNilAdvance() {
@@ -480,6 +487,67 @@ class ZippyJSONTests: XCTestCase {
         /*let count: Int = Int(UInt32.max) + 1
         let d = Data(count: count)
         try! ZippyJSONDecoder().decode(Cc.self, from: d)*/
+    }
+
+    func testJSONKeyCleanupMemorySafe() {
+        class Holder {
+            var path: [CodingKey]? = nil
+            init() {
+            }
+        }
+        struct Aa: Codable & Equatable {
+            let b: Bb
+        }
+        struct Bb: Codable & Equatable {
+            let c: Int
+            init(from decoder: Decoder) {
+                let holder = (decoder.userInfo[CodingUserInfoKey(rawValue: "key")!]) as! Holder
+                holder.path = decoder.codingPath
+                c = 0
+            }
+        }
+        let holder = Holder()
+        autoreleasepool {
+            let decoder = ZippyJSONDecoder()
+            decoder.userInfo[CodingUserInfoKey(rawValue: "key")!] = holder
+            let json = #"{"b": 1}"#.data(using: .utf8)!
+            let _ = try! decoder.decode(Aa.self, from: json)
+        }
+        let _ = holder.path![0].stringValue
+    }
+
+    func testJSONKeyCleanupThreadSafe() {
+        struct Aa: Codable & Equatable {
+            let b: Bb
+        }
+        struct Bb: Codable & Equatable {
+            let c: Cc
+        }
+        struct Cc: Codable & Equatable {
+            enum Key: String, CodingKey{
+                case one
+                case two
+            }
+            let i: Int
+            init(from decoder: Decoder) throws {
+                let codingPath = decoder.codingPath
+                DispatchQueue.global(qos: .userInteractive).async {
+                    let _ = codingPath[0].stringValue
+                    let keys = JSONKey.create(["b", "c"])
+                    if !pathsEqual(codingPath, keys) {
+                        abort()
+                    }
+                }
+                i = try decoder.singleValueContainer().decode(Int.self)
+                let _ = codingPath[0].stringValue
+            }
+        }
+        {
+            let decoder = ZippyJSONDecoder()
+            let json = #"{"b": {"c": 2}}"#.data(using: .utf8)!
+            let _ = try! decoder.decode(Aa.self, from: json)
+        }()
+        usleep(50000)
     }
 
     func testInvalidDates() {
