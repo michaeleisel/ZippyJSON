@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'ZippyJSON'
-  s.version          = '1.2.0'
+  s.version          = '1.2.1'
   s.summary          = 'A ~4x faster, drop-in replacement for JSONDecoder'
 
   s.description      = <<-DESC
@@ -16,7 +16,7 @@ ZippyJSON is a very fast library for converting JSON into Swift objects. It is f
   s.osx.deployment_target = '10.13'
 
   s.source_files = 'Sources/**/*.{h,hh,mm,m,c,cpp,swift}'
-  s.dependency 'ZippyJSONCFamily', '1.2.0'
+  s.dependency 'ZippyJSONCFamily', '1.2.1'
   s.dependency 'JJLISO8601DateFormatter', '~> 0.1.2'
   s.swift_version = '5.0'
 
