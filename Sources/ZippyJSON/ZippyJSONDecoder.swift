@@ -279,14 +279,15 @@ final private class JSONDecodingStorage {
 }
 
 private func computeCodingPath(value: Value) -> [JSONKey] {
-    return JNTDocumentCodingPath(value).compactMap { element -> JSONKey? in
+    return []
+    /*return JNTDocumentCodingPath(value).compactMap { element -> JSONKey? in
         if let index = element as? NSNumber {
             return JSONKey(index: index.intValue)
         } else if let key = element as? NSString {
             return JSONKey(stringValue: String(key))
         }
         return nil // Wouldn't happen
-    }
+    }*/
 }
 
 // Wrapper and AnyWrapper allow for isKnownUniquelyReferenced to work
