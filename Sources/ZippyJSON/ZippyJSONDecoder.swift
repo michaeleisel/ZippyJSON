@@ -740,7 +740,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     fileprivate init(decoder: __JSONDecoder, value: Value) throws {
-        try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
+        try JSONUnkeyedDecoder.ensureValueIsArray(value: value, decoder: decoder)
         self.root = value
         self.decoder = decoder
         let count = JNTDocumentGetArrayCount(value)
@@ -785,9 +785,9 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
                                                                 debugDescription: "Cannot get next value -- unkeyed container is at end."))
     }
 
-    static func ensureValueIsArray(value: Value) throws {
+    static func ensureValueIsArray(value: Value, decoder: __JSONDecoder) throws {
         guard JNTDocumentValueIsArray(value) else {
-            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: [], debugDescription: "Tried to unbox array, but it wasn't an array"))
+            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: computeCodingPath(value: value, decoder: decoder), debugDescription: "Tried to unbox array, but it wasn't an array"))
         }
     }
 
@@ -1175,7 +1175,7 @@ extension ContiguousArray: DummyCreatable where Element: Decodable {
 
 extension ContiguousArray: AnyArray where Element: Decodable {
     fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
-        try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
+        try JSONUnkeyedDecoder.ensureValueIsArray(value: value, decoder: decoder)
         decoder.containers.push(container: value)
         defer { decoder.containers.popContainer() }
         let count = JNTDocumentGetArrayCount(value)
