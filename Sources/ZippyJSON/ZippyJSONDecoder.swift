@@ -292,7 +292,7 @@ final private class JSONDecodingStorage {
 }
 
 @inline(__always) private func computeCodingPath(value: Value, decoder: __JSONDecoder) -> [LazyJSONKey] {
-    let size = decoder.containers.containers.count
+    let size = JNTGetDepth(value)
     let manager = LazyJSONKeyManager.createManager(value: value, decoder: decoder, estimatedSize: size)
     var codingPath: [LazyJSONKey] = []
     codingPath.reserveCapacity(size)
@@ -656,12 +656,15 @@ private final class LazyJSONKeyManager {
     }
 }
 
-/*extension LazyJSONKey: CustomStringConvertible {
+extension LazyJSONKey: CustomStringConvertible {
     var debugDescription: String {
+        if stringValue == "" && intValue == nil {
+            return ""
+        }
         let key = JSONKey(stringValue: stringValue, intValue: intValue)
-        return key.debugDescription
+        return "Lazy" + key.debugDescription
     }
-}*/
+}
 
 private struct LazyJSONKey : CodingKey {
     private let index: Int

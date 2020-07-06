@@ -172,8 +172,8 @@ extension CodingKey {
 
 extension DecodingError.Context: Equatable {
     public static func == (lhs: DecodingError.Context, rhs: DecodingError.Context) -> Bool {
-        let lPath = lhs.codingPath.drop { $0.stringValue == "" && $0.intValue == nil }
-        let rPath = rhs.codingPath.drop { $0.stringValue == "" && $0.intValue == nil }
+        let lPath = lhs.codingPath//.drop { $0.stringValue == "" && $0.intValue == nil }
+        let rPath = rhs.codingPath//.drop { $0.stringValue == "" && $0.intValue == nil }
         let pathsEqual = lPath.count == rPath.count && zip(lPath, rPath).allSatisfy { (a, b) in
             keysEqual(a, b)
         }
