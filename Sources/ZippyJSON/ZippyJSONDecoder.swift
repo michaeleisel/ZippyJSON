@@ -244,12 +244,12 @@ final private class JSONDecodingStorage {
     }
 }
 
-private func computeCodingPath(value: Value) -> [JSONKey] {
-    return JNTDocumentCodingPath(value).compactMap { element -> JSONKey? in
+private func computeCodingPath(value: Value) -> [JSONKeyz] {
+    return JNTDocumentCodingPath(value).compactMap { element -> JSONKeyz? in
         if let index = element as? NSNumber {
-            return JSONKey(index: index.intValue)
+            return JSONKeyz(index: index.intValue)
         } else if let key = element as? NSString {
-            return JSONKey(stringValue: String(key))
+            return JSONKeyz(stringValue: String(key))
         }
         return nil // Wouldn't happen
     }
@@ -263,15 +263,23 @@ extension Wrapper: AnyWrapper {
 }
 
 final private class Wrapper<K: CodingKey> {
-    var decoder: JSONKeyedDecoder<K>
-    init(decoder: JSONKeyedDecoder<K>) {
+    var decoder: JSONKeyzedDecoder<K>
+    init(decoder: JSONKeyzedDecoder<K>) {
         self.decoder = decoder
+    }
+}
+
+final private class Noop {
+    @inline(__always) func removeLast() {
+    }
+    @inline(__always) func append(_ value: CodingKey) {
     }
 }
 
 final private class __JSONDecoder: Decoder {
     var errorType: Any.Type? = nil
     var userInfo: [CodingUserInfoKey : Any]
+    var noop: Noop = Noop()
     var codingPath: [CodingKey]
     let value: Value
     let dictionaryType = ObjectIdentifier(DictionaryWithoutKeyConversion.self)
@@ -308,7 +316,7 @@ final private class __JSONDecoder: Decoder {
 
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
 		// Disable caching for now
-		return KeyedDecodingContainer(try JSONKeyedDecoder<Key>(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
+		return KeyedDecodingContainer(try JSONKeyzedDecoder<Key>(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
     }
 
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
@@ -320,7 +328,7 @@ final private class __JSONDecoder: Decoder {
         JNTProcessError(context) { (description, type, value, key) in
             let debugDescription = String(utf8String: description!)!
             let keyString = key.map { String(utf8String: $0) ?? "" } ?? ""
-            let key = JSONKey(stringValue: keyString)!
+            let key = JSONKeyz(stringValue: keyString)!
             let instanceType = Any.self
             let context = DecodingError.Context(codingPath: self.codingPath, debugDescription: debugDescription)
             switch type {
@@ -570,11 +578,11 @@ extension __JSONDecoder {
     }
 
     fileprivate func unboxNestedContainer<NestedKey>(value: Value, keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
-		return KeyedDecodingContainer(try JSONKeyedDecoder<NestedKey>(decoder: self, value: value, convertToCamel: convertToCamel))
+		return KeyedDecodingContainer(try JSONKeyzedDecoder<NestedKey>(decoder: self, value: value, convertToCamel: convertToCamel))
     }
 }
 
-struct JSONKey : CodingKey {
+final class JSONKeyz : CodingKey {
     public var stringValue: String
     public var intValue: Int?
 
@@ -584,7 +592,7 @@ struct JSONKey : CodingKey {
     }
 
     init?(intValue: Int) {
-        self.stringValue = "\(intValue)"
+        self.stringValue = ""//"\(intValue)"
         self.intValue = intValue
     }
 
@@ -594,11 +602,11 @@ struct JSONKey : CodingKey {
     }
 
     init(index: Int) {
-        self.stringValue = "Index \(index)"
+        self.stringValue = "" //"Index \(index)"
         self.intValue = index
     }
 
-    static let `super` = JSONKey(stringValue: "super")!
+    static let `super` = JSONKeyz(stringValue: "super")!
 }
 
 private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
@@ -629,8 +637,8 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
 
     func unkeyedThrowErrorIfNecessary() throws {
         guard JNTDocumentErrorDidOccur(currentValue) else { return }
-        decoder.codingPath.append(JSONKey(index: currentIndex))
-        defer { decoder.codingPath.removeLast() }
+        decoder.noop.append(JSONKeyz(index: currentIndex))
+        defer { decoder.noop.removeLast() }
         try decoder.throwErrorIfNecessary(currentValue)
     }
 
@@ -644,9 +652,9 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     mutating func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
-        decoder.codingPath.append(JSONKey(index: currentIndex))
+        decoder.noop.append(JSONKeyz(index: currentIndex))
         defer {
-            decoder.codingPath.removeLast()
+            decoder.noop.removeLast()
         }
         currentValue = try valueFromIterator()
         let decoded = try decoder.unbox(currentValue, as: type)
@@ -663,8 +671,8 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
         if !isAtEnd {
             return JNTDecoderFromIterator(&iterator, root)
         }
-        decoder.codingPath.append(JSONKey(index: currentIndex))
-        defer { decoder.codingPath.removeLast() }
+        decoder.noop.append(JSONKeyz(index: currentIndex))
+        defer { decoder.noop.removeLast() }
         throw DecodingError.valueNotFound(Any.self,
                                           DecodingError.Context(codingPath: decoder.codingPath,
                                                                 debugDescription: "Cannot get next value -- unkeyed container is at end."))
@@ -677,9 +685,9 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     mutating public func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> {
-        decoder.codingPath.append(JSONKey(index: currentIndex))
+        decoder.noop.append(JSONKeyz(index: currentIndex))
         defer {
-            decoder.codingPath.removeLast()
+            decoder.noop.removeLast()
         }
         currentValue = try valueFromIterator()
         let container = try decoder.unboxNestedContainer(value: currentValue, keyedBy: type)
@@ -688,9 +696,9 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     mutating func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
-        decoder.codingPath.append(JSONKey(index: currentIndex))
+        decoder.noop.append(JSONKeyz(index: currentIndex))
         defer {
-            decoder.codingPath.removeLast()
+            decoder.noop.removeLast()
         }
         currentValue = try valueFromIterator()
         let container = try decoder.unboxNestedUnkeyedContainer(value: currentValue)
@@ -821,7 +829,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     // End
 }
 
-private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
+private final class JSONKeyzedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
     var codingPath: [CodingKey] {
         return decoder.codingPath
     }
@@ -850,7 +858,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     }
 
     fileprivate init(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws {
-        try self.value = JSONKeyedDecoder<K>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
+        try self.value = JSONKeyzedDecoder<K>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
         self.decoder = decoder
         self.iterator = JNTDocumentGetDictionaryIterator(value)
     }
@@ -881,8 +889,8 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     @inline(__always)
     private func keyedThrowErrorIfNecessary(_ value: Value, key: K) throws {
         guard JNTDocumentErrorDidOccur(value) else { return }
-        decoder.codingPath.append(key)
-        defer { decoder.codingPath.removeLast() }
+        decoder.noop.append(key)
+        defer { decoder.noop.removeLast() }
         try decoder.throwErrorIfNecessary(value)
     }
 
@@ -1003,8 +1011,8 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
         try keyedThrowErrorIfNecessary(value, key: key)
-        decoder.codingPath.append(key)
-        defer { decoder.codingPath.removeLast() }
+        decoder.noop.append(key)
+        defer { decoder.noop.removeLast() }
         let result = try decoder.unbox(subValue, as: T.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -1023,13 +1031,13 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     private func _superDecoder(forKey key: CodingKey) throws -> Decoder {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
-        decoder.codingPath.append(key)
-        defer { decoder.codingPath.removeLast() }
+        decoder.noop.append(key)
+        defer { decoder.noop.removeLast() }
         return decoder.unboxSuper(subValue)
     }
 
     func superDecoder() throws -> Decoder {
-        return try _superDecoder(forKey: JSONKey.super)
+        return try _superDecoder(forKey: JSONKeyz.super)
     }
 
     func superDecoder(forKey key: Key) throws -> Decoder {
