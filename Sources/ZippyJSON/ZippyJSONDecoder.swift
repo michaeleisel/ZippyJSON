@@ -725,7 +725,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     let root: JNTDecoder
     var count: Int?
     var iterator: JNTArrayIterator
-    private unowned let decoder: __JSONDecoder
+    private let decoder: __JSONDecoder
     var currentIndex: Int
     var isAtEnd: Bool {
         // count is never nil in practice, so the fallback value will never be hit
@@ -925,7 +925,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         return computeCodingPath(value: value, decoder: decoder)
     }
 
-    unowned private let decoder: __JSONDecoder
+    private let decoder: __JSONDecoder
 
     typealias Key = K
 
