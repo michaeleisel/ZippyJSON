@@ -30,6 +30,7 @@
 <% types.each do |type| %>
     <%= inline %>fileprivate func decode<%= type == "T" ? "<T : Decodable>" : "" %>(_ type: <%= type %>.Type, forKey key: K) <%= throws(type) %>-> <%= type %> {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: <%= type %>.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result

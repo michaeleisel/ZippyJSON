@@ -274,6 +274,7 @@ final private class __JSONDecoder: Decoder {
     var userInfo: [CodingUserInfoKey : Any]
     var codingPath: [CodingKey]
     let value: Value
+    let dictionaryType = ObjectIdentifier(DictionaryWithoutKeyConversion.self)
     let keyDecodingStrategy: ZippyJSONDecoder.KeyDecodingStrategy
     let convertToCamel: Bool
     let dataDecodingStrategy: ZippyJSONDecoder.DataDecodingStrategy
@@ -473,7 +474,8 @@ final private class __JSONDecoder: Decoder {
                                                                         debugDescription: "Invalid URL string."))
              }
             return url
-        } else if let stringKeyedDictType = type as? DictionaryWithoutKeyConversion.Type {
+        } else if ObjectIdentifier(type) == dictionaryType,
+            let stringKeyedDictType = type as? DictionaryWithoutKeyConversion.Type {
             return try unbox(value, as: stringKeyedDictType)
         //} else if let dummy = arrayTypeCache.dummyForType(type) {
             //return try dummy.create(value: value, decoder: self)
@@ -533,11 +535,8 @@ extension __JSONDecoder {
     }
 
     fileprivate func unbox(_ value: Value, as type: String.Type) -> String {
-        if let result = JNTDocumentDecode__String(value) {
-            return String(utf8String: result)!
-        } else {
-            return ""
-        }
+        let result = JNTDocumentDecode__String(value)
+        return String(utf8String: result!)!
     }
 
     fileprivate func unbox(_ value: Value, as type: Double.Type) -> Double {
@@ -618,7 +617,7 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
     }
 
     fileprivate init(decoder: __JSONDecoder, value: Value) throws {
-        try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
+        try JSONUnkeyedDecoder.ensureValueIsArray(value: value, codingPath: decoder.codingPath)
         self.root = value
         self.decoder = decoder
         let count = JNTDocumentGetArrayCount(value)
@@ -671,9 +670,9 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
                                                                 debugDescription: "Cannot get next value -- unkeyed container is at end."))
     }
 
-    static func ensureValueIsArray(value: Value) throws {
+    static func ensureValueIsArray(value: Value, codingPath: [CodingKey]) throws {
         guard JNTDocumentValueIsArray(value) else {
-            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: computeCodingPath(value: value), debugDescription: "Tried to unbox array, but it wasn't an array"))
+            throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: codingPath, debugDescription: "Tried to unbox array, but it wasn't an array"))
         }
     }
 
@@ -868,23 +867,15 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     private func fetchValue(keyPointer: UnsafePointer<Int8>) throws -> Value {
         let result = JNTDocumentFetchValue(value, keyPointer, &iterator)
-        try keyedThrowErrorIfNecessary(value, keyString: keyPointer)
         return result
     }
 
     func decodeNil(forKey key: K) throws -> Bool {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let bool = JNTDocumentDecodeNil(subValue)
         try keyedThrowErrorIfNecessary(value, key: key)
         return bool
-    }
-
-    @inline(__always)
-    private func keyedThrowErrorIfNecessary(_ value: Value, keyString: UnsafePointer<Int8>) throws {
-        guard JNTDocumentErrorDidOccur(value) else { return }
-        let string = String(cString: keyString)
-        let key = K.init(stringValue: string)!
-        try keyedThrowErrorIfNecessary(value, key: key)
     }
 
     @inline(__always)
@@ -898,6 +889,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
     // KeyedBegin
     fileprivate func decode(_ type: UInt8.Type, forKey key: K) throws -> UInt8 {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: UInt8.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -905,6 +897,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode(_ type: UInt16.Type, forKey key: K) throws -> UInt16 {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: UInt16.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -912,6 +905,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode(_ type: UInt32.Type, forKey key: K) throws -> UInt32 {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: UInt32.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -919,6 +913,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode(_ type: UInt64.Type, forKey key: K) throws -> UInt64 {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: UInt64.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -926,6 +921,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode(_ type: Int8.Type, forKey key: K) throws -> Int8 {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: Int8.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -933,6 +929,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode(_ type: Int16.Type, forKey key: K) throws -> Int16 {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: Int16.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -940,6 +937,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode(_ type: Int32.Type, forKey key: K) throws -> Int32 {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: Int32.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -947,6 +945,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode(_ type: Int64.Type, forKey key: K) throws -> Int64 {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: Int64.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -954,6 +953,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode(_ type: Bool.Type, forKey key: K) throws -> Bool {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: Bool.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -961,6 +961,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode(_ type: String.Type, forKey key: K) throws -> String {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: String.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -968,6 +969,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode(_ type: Double.Type, forKey key: K) throws -> Double {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: Double.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -975,6 +977,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode(_ type: Float.Type, forKey key: K) throws -> Float {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: Float.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -982,6 +985,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode(_ type: Int.Type, forKey key: K) throws -> Int {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: Int.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -989,6 +993,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode(_ type: UInt.Type, forKey key: K) throws -> UInt {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         let result = decoder.unbox(subValue, as: UInt.self)
         try keyedThrowErrorIfNecessary(value, key: key)
         return result
@@ -997,6 +1002,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     fileprivate func decode<T : Decodable>(_ type: T.Type, forKey key: K) throws -> T {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         decoder.codingPath.append(key)
         defer { decoder.codingPath.removeLast() }
         let result = try decoder.unbox(subValue, as: T.self)
@@ -1006,6 +1012,7 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
 
     func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: K) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
         let subValue: Value = try key.stringValue.withCString(fetchValue)
+        try keyedThrowErrorIfNecessary(value, key: key)
         return try decoder.unboxNestedContainer(value: subValue, keyedBy: type)
     }
 
@@ -1152,7 +1159,7 @@ extension ContiguousArray: DummyCreatable where Element: Decodable {
 
 extension ContiguousArray: AnyArray where Element: Decodable {
     fileprivate func create(value: Value, decoder: __JSONDecoder) throws -> Self {
-        try JSONUnkeyedDecoder.ensureValueIsArray(value: value)
+        try JSONUnkeyedDecoder.ensureValueIsArray(value: value, codingPath: [])
         decoder.containers.push(container: value)
         defer { decoder.containers.popContainer() }
         let count = JNTDocumentGetArrayCount(value)
