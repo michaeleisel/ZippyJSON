@@ -17,7 +17,7 @@ ZippyJSON is a very fast library for converting JSON into Swift objects. It is f
 
   s.source_files = 'Sources/**/*.{h,hh,mm,m,c,cpp,swift}'
   s.dependency 'ZippyJSONCFamily', '1.2.1'
-  s.dependency 'JJLISO8601DateFormatter', '~> 0.1.2'
+  s.dependency 'JJLISO8601DateFormatter', '0.1.3'
   s.swift_version = '5.0'
 
   s.test_spec 'Tests' do |test_spec|
