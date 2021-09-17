@@ -315,7 +315,7 @@ private func computeCodingPathInternal(value: Value) -> [JSONKey] {
 }
 
 // Wrapper and AnyWrapper allow for isKnownUniquelyReferenced to work
-private protocol AnyWrapper: class {
+private protocol AnyWrapper: AnyObject {
 }
 
 extension Wrapper: AnyWrapper {
