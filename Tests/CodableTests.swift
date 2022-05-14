@@ -424,10 +424,13 @@ class TestCodable : TestCodableSuper {
 
     // MARK: - Decimal
     lazy var decimalValues: [Int : Decimal] = [
-        /*#line : Decimal.leastFiniteMagnitude,
+        #line : Decimal.leastFiniteMagnitude,
         #line : Decimal.greatestFiniteMagnitude,
-        #line : Decimal.leastNormalMagnitude,*/
+        #line : Decimal.leastNormalMagnitude,
         #line : Decimal.leastNonzeroMagnitude,
+        #line : 0,
+        #line : 1,
+        #line : 12.34,
         // #line : Decimal(),
 
         // See 33996620 for re-enabling this test.
