@@ -433,8 +433,7 @@ class TestCodable : TestCodableSuper {
         #line : 12.34,
         // #line : Decimal(),
 
-        // See 33996620 for re-enabling this test.
-        // #line : Decimal.pi,
+        #line : Decimal.pi,
     ]
 
     func test_Decimal_JSON() {
