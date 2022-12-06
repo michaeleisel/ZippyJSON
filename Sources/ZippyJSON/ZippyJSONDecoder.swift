@@ -265,7 +265,7 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer, decoder: __JSOND
 }
 
 final private class JSONDecodingStorage {
-    private(set) fileprivate var containers: [Value] = []
+    private(set) fileprivate var containers: ContiguousArray<Value> = []
 
     fileprivate init() {
     }
@@ -593,10 +593,6 @@ extension __JSONDecoder {
     // End
 
     fileprivate func unboxNestedUnkeyedContainer(value: Value) throws -> UnkeyedDecodingContainer {
-        containers.push(container: value)
-        defer {
-            containers.popContainer()
-        }
         return try JSONUnkeyedDecoder(decoder: self, value: value)
     }
 
@@ -609,11 +605,7 @@ extension __JSONDecoder {
     }
 
     fileprivate func unboxNestedContainer<NestedKey>(value: Value, keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
-        containers.push(container: value)
-        defer {
-            containers.popContainer()
-        }
-		return KeyedDecodingContainer(try JSONKeyedDecoder<NestedKey>(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
+		return KeyedDecodingContainer(try JSONKeyedDecoder<NestedKey>(decoder: self, value: value, convertToCamel: convertToCamel))
     }
 }
 
