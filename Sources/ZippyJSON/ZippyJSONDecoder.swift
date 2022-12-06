@@ -264,20 +264,68 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer, decoder: __JSOND
     return error ?? NSError(domain: "", code: 0, userInfo: [:])
 }
 
+final private class SimpleArray<T> {
+    private var buffer: UnsafeMutableBufferPointer<T>
+    private var capacity: Int
+
+    var count: Int
+
+    init() {
+        capacity = 1
+        buffer = UnsafeMutableBufferPointer<T>.allocate(capacity: capacity)
+        count = 0
+    }
+
+    init(_ array: SimpleArray<T>) {
+        capacity = array.capacity
+        count = array.count
+        buffer = UnsafeMutableBufferPointer<T>.allocate(capacity: capacity)
+        buffer.baseAddress?.assign(from: array.buffer.baseAddress!, count: count)
+    }
+
+    func append(_ object: T) {
+        if count + 1 > capacity {
+            let newCapacity = capacity * 2
+            let newBuffer = UnsafeMutableBufferPointer<T>.allocate(capacity: newCapacity)
+            newBuffer.baseAddress?.assign(from: buffer.baseAddress!, count: count)
+            buffer.deallocate()
+            buffer = newBuffer
+            capacity = newCapacity
+        }
+        buffer[count] = object
+        count += 1
+    }
+
+    func removeLast() {
+        if count == 0 {
+            fatalError("Trying to remove last element of empty array")
+        }
+        count -= 1
+    }
+
+    var last: T? {
+        return count == 0 ? nil : buffer[count - 1]
+    }
+
+    deinit {
+        buffer.deallocate()
+    }
+}
+
 final private class JSONDecodingStorage {
-    private(set) fileprivate var containers: ContiguousArray<Value> = []
+    private(set) fileprivate var containers: SimpleArray<Value>
 
     fileprivate init() {
+        containers = SimpleArray<Value>()
     }
     
     fileprivate func createCopy() -> JSONDecodingStorage {
         let copy = JSONDecodingStorage()
-        copy.containers = containers
+        copy.containers = SimpleArray(containers)
         return copy
     }
 
     fileprivate var topContainer: Value {
-        precondition(!self.containers.isEmpty, "Empty container stack.")
         return self.containers.last!
     }
 
@@ -286,7 +334,6 @@ final private class JSONDecodingStorage {
     }
 
     fileprivate func popContainer() {
-        precondition(!self.containers.isEmpty, "Empty container stack.")
         self.containers.removeLast()
     }
 }
