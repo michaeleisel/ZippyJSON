@@ -252,7 +252,7 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer) -> Error {
 }
 
 final private class JSONDecodingStorage {
-    private(set) fileprivate var containers: [Value] = []
+    private(set) fileprivate var containers: ContiguousArray<Value> = []
 
     fileprivate init() {
     }
