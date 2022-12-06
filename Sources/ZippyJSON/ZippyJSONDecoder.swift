@@ -241,8 +241,6 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer, decoder: __JSOND
     JNTProcessError(context) { (description, type, value, key) in
         let debugDescription = String(utf8String: description!)!
         let path = computeCodingPath(value: value, decoder: decoder)
-        let keyString = key.map { String(utf8String: $0) ?? "" } ?? ""
-        let key = JSONKey(stringValue: keyString)!
         let instanceType = Any.self
         switch type {
         case .wrongType:
@@ -250,6 +248,8 @@ fileprivate func swiftErrorFromError(_ context: ContextPointer, decoder: __JSOND
         case .numberDoesNotFit:
             error = DecodingError.dataCorrupted(DecodingError.Context(codingPath: path, debugDescription:debugDescription))
         case .keyDoesNotExist:
+            let keyString = key.map { String(utf8String: $0) ?? "" } ?? ""
+            let key = JSONKey(stringValue: keyString)!
             error = DecodingError.keyNotFound(key, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
         case .valueDoesNotExist:
             error = DecodingError.valueNotFound(instanceType, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
@@ -363,7 +363,7 @@ final private class __JSONDecoder: Decoder {
 
     func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
 		// Disable caching for now
-		return KeyedDecodingContainer(try JSONKeyedDecoder<Key>(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel))
+        return KeyedDecodingContainer(try JSONKeyedDecoder<Key>(decoder: self, value: containers.topContainer, convertToCamel: convertToCamel, codingPath: codingPath))
     }
     
     func unkeyedContainer() throws -> UnkeyedDecodingContainer {
@@ -924,9 +924,7 @@ private func throwErrorIfNecessary(_ value: Value, decoder: __JSONDecoder) throw
 }
 
 private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProtocol {
-    var codingPath: [CodingKey] {
-        return computeCodingPath(value: value, decoder: decoder)
-    }
+    let codingPath: [CodingKey]
 
     private let decoder: __JSONDecoder
 
@@ -951,9 +949,10 @@ private final class JSONKeyedDecoder<K : CodingKey> : KeyedDecodingContainerProt
         return value
     }
 
-    fileprivate init(decoder: __JSONDecoder, value: Value, convertToCamel: Bool) throws {
+    fileprivate init(decoder: __JSONDecoder, value: Value, convertToCamel: Bool, codingPath: [CodingKey]) throws {
         try self.value = JSONKeyedDecoder<K>.setupValue(value, decoder: decoder, convertToCamel: convertToCamel)
         self.decoder = decoder
+        self.codingPath = codingPath
         self.iterator = JNTDocumentGetDictionaryIterator(value)
     }
 
