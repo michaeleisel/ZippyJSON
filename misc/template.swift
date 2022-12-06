@@ -12,7 +12,7 @@
 <% types.each do |type| %>
     <%= inline %>fileprivate func unbox(_ value: Value, as type: <%= type %>.Type) throws -> <%= type %> {
         let result = JNTDocumentDecode__<%= c_type(type) %>(value)
-        try throwErrorIfNecessary(value, decoder: self)
+        try throwErrorIfNecessary(value)
         return <%= convert(type) %>
     }
 
