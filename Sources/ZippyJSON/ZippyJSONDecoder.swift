@@ -238,28 +238,28 @@ public final class ZippyJSONDecoder {
 
 fileprivate func swiftErrorFromError(_ context: ContextPointer, decoder: __JSONDecoder) -> Error {
     var error: Error? = nil
-    JNTProcessError(context) { (description, type, value, key) in
-        let debugDescription = String(utf8String: description!)!
-        let path = computeCodingPath(value: value, decoder: decoder)
-        let keyString = key.map { String(utf8String: $0) ?? "" } ?? ""
+    var errorInfo: JNTErrorInfo = JNTErrorInfo()
+    JNTGetErrorInfo(context, &errorInfo)
+    let path = computeCodingPath(value: errorInfo.value, decoder: decoder)
+    let debugDescription = String(utf8String: errorInfo.description!)!
+    let instanceType = Any.self
+    switch errorInfo.type {
+    case .wrongType:
+        error = DecodingError.typeMismatch(instanceType, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
+    case .numberDoesNotFit:
+        error = DecodingError.dataCorrupted(DecodingError.Context(codingPath: path, debugDescription:debugDescription))
+    case .keyDoesNotExist:
+        let keyString = errorInfo.key.map { String(utf8String: $0) ?? "" } ?? ""
         let key = JSONKey(stringValue: keyString)!
-        let instanceType = Any.self
-        switch type {
-        case .wrongType:
-            error = DecodingError.typeMismatch(instanceType, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
-        case .numberDoesNotFit:
-            error = DecodingError.dataCorrupted(DecodingError.Context(codingPath: path, debugDescription:debugDescription))
-        case .keyDoesNotExist:
-            error = DecodingError.keyNotFound(key, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
-        case .valueDoesNotExist:
-            error = DecodingError.valueNotFound(instanceType, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
-        case .jsonParsingFailed:
-            error = DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: debugDescription))
-        case .none:
-            fallthrough
-        @unknown default:
-            break
-        }
+        error = DecodingError.keyNotFound(key, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
+    case .valueDoesNotExist:
+        error = DecodingError.valueNotFound(instanceType, DecodingError.Context(codingPath: path, debugDescription: debugDescription))
+    case .jsonParsingFailed:
+        error = DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: debugDescription))
+    case .none:
+        fallthrough
+    @unknown default:
+        break
     }
     return error ?? NSError(domain: "", code: 0, userInfo: [:])
 }
