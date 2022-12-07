@@ -5,7 +5,7 @@ $number_types = (["UInt", "Int"].product([8, 16, 32, 64].map(&:to_s))).map { |a,
 $other_types = ["Bool", "String", "Double", "Float", "Int", "UInt"]
 $extended_types = ["Date", "Data", "Decimal"]
 
-inline = ""
+inline = "@inline(__always) "
 
 def additional_args(type)
   args = {
