@@ -2,7 +2,7 @@
 <% types.each do |type| %>
     <%= inline %>public mutating func decode(_ type: <%= type %>.Type) throws -> <%= type %> {
         currentValue = try valueFromIterator()
-        let decoded = try decoder.unbox(currentValue, as: <%= type %>.self, key: JSONKey(index: currentIndex))
+        let decoded = try decoder.unbox(currentValue, as: <%= type %>.self, key: IndexKey(index: currentIndex))
         advanceArray()
         return decoded
     }
