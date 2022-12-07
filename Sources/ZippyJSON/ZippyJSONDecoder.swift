@@ -459,11 +459,13 @@ final private class __JSONDecoder: Decoder {
         }
     }
 
+    @inline(__always)
     fileprivate func unbox<T : Decodable>(_ value: Value, as type: T.Type, key: CodingKey?) throws -> T {
         return (try unbox_(value, as: type, key: key)) as! T
     }
 
     
+    @inline(__always)
     fileprivate func unbox_(_ value: Value, as type: Decodable.Type, key: CodingKey?) throws -> Any {
         push(container: value, key: key)
         defer { pop(shouldRemoveKey: key != nil) }
