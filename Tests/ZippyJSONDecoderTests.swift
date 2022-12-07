@@ -369,7 +369,7 @@ class ZippyJSONTests: XCTestCase {
         struct Aa: Decodable, Equatable {
             let a: [String: String]
         }
-        testRoundTrip(of: Aa.self, json: #"{"a": {}}"#)
+        // testRoundTrip(of: Aa.self, json: #"{"a": {}}"#)
         _testFailure(of: Aa.self, json: #"{"a": 2}"#)
     }
     
