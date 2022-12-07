@@ -463,27 +463,26 @@ final private class __JSONDecoder: Decoder {
         return (try unbox_(value, as: type, key: key)) as! T
     }
 
+    
     fileprivate func unbox_(_ value: Value, as type: Decodable.Type, key: CodingKey?) throws -> Any {
+        push(container: value, key: key)
+        defer { pop(shouldRemoveKey: key != nil) }
         if type == Date.self || type == NSDate.self {
-            return try unbox(value, as: Date.self, key: key)
+            return try unbox(value, as: Date.self, key: nil)
         } else if type == Data.self || type == NSData.self {
-            return try unbox(value, as: Data.self, key: key)
+            return try unbox(value, as: Data.self, key: nil)
         } else if type == Decimal.self || type == NSDecimalNumber.self {
             return try unbox(value, as: Decimal.self)
         } else if type == URL.self || type == NSURL.self {
-            let urlString = try unbox(value, as: String.self, key: key)
-            push(container: value, key: key)
-            defer { pop(shouldRemoveKey: key != nil) }
+            let urlString = try unbox(value, as: String.self, key: nil)
             guard let url = URL(string: urlString) else {
                 throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath,
                                                                         debugDescription: "Invalid URL string."))
              }
             return url
         } else if let stringKeyedDictType = type as? DictionaryWithoutKeyConversion.Type {
-            return try unbox(value, as: stringKeyedDictType, key: key)
+            return try unbox(value, as: stringKeyedDictType, key: nil)
         } else {
-            push(container: value, key: key)
-            defer { pop(shouldRemoveKey: key != nil) }
             return try type.init(from: self)
         }
     }
@@ -674,9 +673,6 @@ private struct JSONUnkeyedDecoder : UnkeyedDecodingContainer {
             return JNTDecoderFromIterator(&iterator, root)
         }
         var path = codingPath
-        if let count = count, count > 0 {
-            let _ = path.popLast()
-        }
         path.append(JSONKey(index: currentIndex))
         throw DecodingError.valueNotFound(Any.self,
                                           DecodingError.Context(codingPath: path,
