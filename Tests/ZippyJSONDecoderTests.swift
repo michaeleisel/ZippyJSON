@@ -284,6 +284,16 @@ class ZippyJSONTests: XCTestCase {
     }
     
     func testCodingPath() {
+        struct Zz: Equatable & Codable {
+            init(from decoder: Decoder) throws {
+                let expected: [CodingKey] = [JSONKey(stringValue: "asdf")!, JSONKey(index: 0)]
+                XCTAssert(aKeysEqual(decoder.codingPath, expected))
+            }
+        }
+        struct ZzContainer: Equatable & Codable {
+            let asdf: [Zz]
+        }
+        testRoundTrip(of: ZzContainer.self, json: #"{"asdf": [{}]}"#)
         struct Aa: Equatable & Codable {
             init(from decoder: Decoder) throws {
                 let container = try decoder.container(keyedBy: JSONKey.self)
@@ -311,12 +321,6 @@ class ZippyJSONTests: XCTestCase {
             init(from decoder: Decoder) throws {
                 var container = try decoder.unkeyedContainer()
                 let _ = try container.nestedUnkeyedContainer()
-            }
-        }
-        
-        struct Zz: Equatable & Codable {
-            init(from decoder: Decoder) throws {
-                
             }
         }
         //_testFailure(of: Bb.self, json: "[]")
@@ -683,7 +687,7 @@ class ZippyJSONTests: XCTestCase {
     func testEmptyString() {
         _testFailure(of: [Int].self, json: "", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "The given data was not valid JSON. Error: Empty")))
     }
-
+    
     func testArrayStuff() {
         struct Test: Codable, Equatable {
             let a: Bool

@@ -37,13 +37,6 @@ func isOnSimulator() -> Bool {
   #endif
 }
 
-private final class Weak<T: AnyObject> {
-    weak var value: T?
-    init(value: T) {
-        self.value = value
-    }
-}
-
 public final class ZippyJSONDecoder {
     @available(*, deprecated, message: "This flag is deprecated because full-precision parsing speed is now on par with imprecise, so it will just always use full-precision")
     public var zjd_fullPrecisionFloatParsing = true
