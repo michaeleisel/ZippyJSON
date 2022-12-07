@@ -421,20 +421,18 @@ final private class __JSONDecoder: Decoder {
     }
 
     fileprivate func unbox(_ value: Value, as type: Data.Type, key: CodingKey?) throws -> Data {
+        push(container: value, key: key)
+        defer { pop(shouldRemoveKey: key != nil) }
         switch dataDecodingStrategy {
         case .base64:
-            let string = try unbox(value, as: String.self, key: key)
+            let string = try unbox(value, as: String.self, key: nil)
             guard let data = Data(base64Encoded: string) else {
                 throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: self.codingPath, debugDescription: "Encountered Data is not valid Base64."))
             }
             return data
         case .deferredToData:
-            push(container: value, key: key)
-            defer { pop(shouldRemoveKey: key != nil) }
             return try Data(from: self)
         case .custom(let closure):
-            push(container: value, key: key)
-            defer { pop(shouldRemoveKey: key != nil) }
             return try closure(self)
         }
     }
