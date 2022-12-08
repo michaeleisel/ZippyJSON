@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'ZippyJSON'
-  s.version          = '1.2.9'
+  s.version          = '1.2.10'
   s.summary          = 'A ~4x faster, drop-in replacement for JSONDecoder'
 
   s.description      = <<-DESC
