@@ -199,7 +199,11 @@ class ZippyJSONTests: XCTestCase {
     }()
 
     func dataFromFile(_ file: String) -> Data {
+    #if SWIFT_PACKAGE
+        let path = Bundle.module.path(forResource: file, ofType: "")!
+    #else
         let path = Bundle(for: type(of: self)).path(forResource: file, ofType: "")!
+    #endif
         let string = try! String(contentsOfFile: path)
         return string.data(using: .utf8)!
     }

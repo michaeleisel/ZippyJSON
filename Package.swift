@@ -1,4 +1,4 @@
-// swift-tools-version:5.1
+// swift-tools-version:5.7
 
 import PackageDescription
 
@@ -6,8 +6,8 @@ let package = Package(
     name: "ZippyJSON",
     platforms: [
         .iOS(.v11),
-        .tvOS(.v10),
-        .macOS(.v10_12),
+        .tvOS(.v11),
+        .macOS(.v10_13),
     ],
     products: [
         .library(
@@ -16,11 +16,27 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/michaeleisel/JJLISO8601DateFormatter", .upToNextMajor(from: "0.1.5")),
-        .package(url: "https://github.com/michaeleisel/ZippyJSONCFamily", .exact("1.2.9")),
+        .package(url: "https://github.com/michaeleisel/ZippyJSONCFamily", .upToNextMinor(from: "1.2.9")),
     ],
     targets: [
         .target(
             name: "ZippyJSON",
             dependencies: ["ZippyJSONCFamily", "JJLISO8601DateFormatter"]),
+        .testTarget(
+            name: "ZippyJSONTests",
+            dependencies: ["ZippyJSON"],
+            resources: [
+                .copy("Models/apache_builds.json"),
+                .copy("Models/canada.json"),
+                .copy("Models/entities.json"),
+                .copy("Models/github_events.json"),
+                .copy("Models/marine_ik.json"),
+                .copy("Models/mesh.json"),
+                .copy("Models/numbers.json"),
+                .copy("Models/random.json"),
+                .copy("Models/twitter.json"),
+                .copy("Models/twitter2.json"),
+                .copy("Models/twitterescaped.json")
+            ])
     ]
 )

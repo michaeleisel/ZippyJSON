@@ -23,7 +23,7 @@ ZippyJSON is a very fast library for converting JSON into Swift objects. It is f
 
   s.test_spec 'Tests' do |test_spec|
     # test_spec.requires_app_host = true
-    test_spec.source_files = 'Tests/**/*.{swift,h,m}'
-    test_spec.resources = 'Tests/**/*.json'
+    test_spec.source_files = 'Tests/ZippyJSONTests/**/*.{swift,h,m}'
+    test_spec.resources = 'Tests/ZippyJSONTests/**/*.json'
   end
 end
