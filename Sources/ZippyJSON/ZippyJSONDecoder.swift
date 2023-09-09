@@ -267,7 +267,7 @@ final private class JSONDecodingStorage {
     }
 
     fileprivate var topContainer: Value {
-        precondition(!self.containers.isEmpty, "Empty container stack.")
+        precondition(!self.containers.isEmpty, "Empty container stack")
         return self.containers.last!
     }
 
@@ -276,7 +276,7 @@ final private class JSONDecodingStorage {
     }
 
     fileprivate func popContainer() {
-        precondition(!self.containers.isEmpty, "Empty container stack.")
+        precondition(!self.containers.isEmpty, "Empty container stack")
         self.containers.removeLast()
     }
 }
