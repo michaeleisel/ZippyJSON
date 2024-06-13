@@ -257,9 +257,9 @@ public func expectationFailure(
   stackTrace: SourceLocStack) {
   _anyExpectFailed.store(true)
   stackTrace.print()
-  fatalError() // todo: why is this necessary
   print(reason, terminator: reason == "" ? "" : "\n")
   print(message, terminator: message == "" ? "" : "\n")
+  fatalError() // todo: why is this necessary
 }
 
 // Renamed to avoid collision with expectEqual(_, _, TRACE).

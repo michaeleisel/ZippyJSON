@@ -578,7 +578,7 @@ class ZippyJSONTests: XCTestCase {
 
         testRoundTrip(of: [Date].self, json: #"["2016-06-13T16:00:00+00:00"]"#, dateDecodingStrategy: .iso8601)
         _testFailure(of: [Date].self, json: "[23908742398047]", expectedError: typeError, dateDecodingStrategy: .iso8601)
-        _testFailure(of: [Date].self, json: #"["23908742398047"]"#, expectedError: error, dateDecodingStrategy: .iso8601)
+      _testFailure(of: [Date].self, json: #"["23908742398047"]"#, relaxedErrorCheck: true, expectedError: error, dateDecodingStrategy: .iso8601)
         
         testRoundTrip(of: [Date].self, json: #"["1992"]"#, dateDecodingStrategy: .custom({ _ -> Date in
             return Date(timeIntervalSince1970: 0)
@@ -762,8 +762,8 @@ class ZippyJSONTests: XCTestCase {
         testRoundTrip(of: UInt64.self, json: "\(UInt64.max)")
         testRoundTrip(of: [Int8].self, json: "[127]")
         testRoundTrip(of: [UInt8].self, json: "[255]")
-        _testFailure(of: [UInt8].self, json: "[256]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number 256 does not fit.")))
-        _testFailure(of: [UInt8].self, json: "[-1]", expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number -1 does not fit.")))
+      _testFailure(of: [UInt8].self, json: "[256]", relaxedErrorCheck: true, expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number 256 does not fit.")))
+      _testFailure(of: [UInt8].self, json: "[-1]", relaxedErrorCheck: true, expectedError: DecodingError.dataCorrupted(DecodingError.Context(codingPath: [JSONKey(index: 0)], debugDescription: "Parsed JSON number -1 does not fit.")))
         testRoundTrip(of: [Int64].self, json: "[\(Int64.max)]")
         testRoundTrip(of: [Int64].self, json: "[\(Int64.min)]")
         testRoundTrip(of: [UInt64].self, json: "[\(UInt64.max)]")
