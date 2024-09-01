@@ -15,8 +15,8 @@ let package = Package(
             targets: ["ZippyJSON"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/michaeleisel/JJLISO8601DateFormatter", .upToNextMajor(from: "0.1.7")),
-        .package(url: "https://github.com/michaeleisel/ZippyJSONCFamily", .exact("1.2.14")),
+        .package(url: "https://github.com/michaeleisel/JJLISO8601DateFormatter", from: "0.1.7"),
+        .package(url: "https://github.com/michaeleisel/ZippyJSONCFamily", exact: "1.2.14"),
     ],
     targets: [
         .target(
