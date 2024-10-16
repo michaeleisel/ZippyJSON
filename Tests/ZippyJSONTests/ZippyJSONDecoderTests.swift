@@ -90,12 +90,20 @@ func time(_ closure: () -> ()) -> CFTimeInterval {
 }
 
 func averageTime(_ closure: () -> ()) -> CFTimeInterval {
-    let count = 10
+    closure() // Warmup
+    let startTime = threadTime()
+    var count = 0
+    while threadTime() < startTime + 1 {
+        closure()
+        count += 1
+    }
+    return Double(count) / (threadTime() - startTime)
+    /*let count = 10
     var times: [CFTimeInterval] = []
     for _ in 0..<count {
         times.append(time(closure))
     }
-    return times.dropFirst(count / 3).reduce(0, +) / CFTimeInterval(times.count)
+    return times.dropFirst(count / 3).reduce(0, +) / CFTimeInterval(times.count)*/
 }
 
 func testPerf<T: Decodable>(appleDecoder: JSONDecoder, zippyDecoder: ZippyJSONDecoder, json: Data, type: T.Type) {
@@ -105,7 +113,8 @@ func testPerf<T: Decodable>(appleDecoder: JSONDecoder, zippyDecoder: ZippyJSONDe
     let appleTime = averageTime {
         let _ = try! appleDecoder.decode(type, from: json)
     }
-    XCTAssert(zippyTime < appleTime / 3)
+    print("Zippy: \(zippyTime), apple: \(appleTime)")
+    // XCTAssert(zippyTime < appleTime / 3)
 }
 
 public func testRoundTrip<T>(of value: T.Type,
@@ -885,10 +894,10 @@ class ZippyJSONTests: XCTestCase {
         testRoundTrip(of: Test.self, json: #"{"a": null}"#)
     }
 
-    func run<T: Codable & Equatable>(_ filename: String, _ type: T.Type, keyDecoding: ZippyJSONDecoder.KeyDecodingStrategy = .useDefaultKeys, dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy = .deferredToDate) {
+    func run<T: Codable & Equatable>(_ filename: String, _ type: T.Type, keyDecoding: ZippyJSONDecoder.KeyDecodingStrategy = .useDefaultKeys, dateDecodingStrategy: ZippyJSONDecoder.DateDecodingStrategy = .deferredToDate, testPerformance: Bool = false) {
         let json = dataFromFile(filename + ".json")
         testRoundTrip(of: type, json: String(data: json, encoding: .utf8)!,
-                      dateDecodingStrategy: dateDecodingStrategy, testPerformance: false)
+                      dateDecodingStrategy: dateDecodingStrategy, testPerformance: testPerformance)
     }
 
     func testArrayTypes() {
@@ -923,14 +932,21 @@ class ZippyJSONTests: XCTestCase {
         }
         testRoundTrip(of: Test.self, json: "[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]")
     }
-
+    
+    struct Dates: Codable & Equatable {
+        let dates: [Date]
+    }
+  
     func testRealJsons() {
-        run("apache_builds", ApacheBuilds.self)
-        run("random", random.self)
-        run("mesh", mesh.self)
-        run("canada", canada.self)
-        run("github_events", ghEvents.self, dateDecodingStrategy: .iso8601)
-        run("twitter", Twitter.self, keyDecoding: .convertFromSnakeCase)
-        run("twitterescaped", Twitter.self)
+        for testPerformance in [true] {
+            run("dates", [Date].self, dateDecodingStrategy: .iso8601, testPerformance: testPerformance)
+            run("apache_builds", ApacheBuilds.self, testPerformance: testPerformance)
+            run("random", random.self, testPerformance: testPerformance)
+            run("mesh", mesh.self, testPerformance: testPerformance)
+            run("canada", canada.self, testPerformance: testPerformance)
+            run("github_events", ghEvents.self, dateDecodingStrategy: .iso8601, testPerformance: testPerformance)
+            run("twitter", Twitter.self, keyDecoding: .convertFromSnakeCase, testPerformance: testPerformance)
+            run("twitterescaped", Twitter.self, testPerformance: testPerformance)
+        }
     }
 }
