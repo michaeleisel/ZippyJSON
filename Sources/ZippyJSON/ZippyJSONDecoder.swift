@@ -1,5 +1,6 @@
 //Copyright (c) 2018 Michael Eisel. All rights reserved.
 
+import os
 import Foundation
 import ZippyJSONCFamily
 import JJLISO8601DateFormatter
@@ -37,19 +38,15 @@ func isOnSimulator() -> Bool {
   #endif
 }
 
-public final class ZippyJSONDecoder {
+public final class ZippyJSONDecoder: Sendable {
     @available(*, deprecated, message: "This flag is deprecated because full-precision parsing speed is now on par with imprecise, so it will just always use full-precision")
-    public var zjd_fullPrecisionFloatParsing = true
+    public let zjd_fullPrecisionFloatParsing = true
+
+    @Synchronized
     private static var _zjd_suppressWarnings: Bool = false
     public static var zjd_suppressWarnings: Bool {
-        get {
-            return _zjd_suppressWarnings
-        }
-        set {
-            objc_sync_enter(self)
-            defer { objc_sync_exit(self) }
-            _zjd_suppressWarnings = newValue
-        }
+        get { _zjd_suppressWarnings }
+        set { _zjd_suppressWarnings = newValue }
     }
 
     private func createContext(string: UnsafePointer<Int8>, length: Int) -> ContextPointer {
@@ -167,42 +164,66 @@ public final class ZippyJSONDecoder {
         }
     }
 
+    @Synchronized
+    private var _userInfo: [CodingUserInfoKey : Any] = [:]
+    public var userInfo: [CodingUserInfoKey : Any] {
+        get { _userInfo }
+        set { _userInfo = newValue }
+    }
 
-    public var userInfo: [CodingUserInfoKey : Any] = [:]
+    @Synchronized
+    private var _nonConformingFloatDecodingStrategy: NonConformingFloatDecodingStrategy
+    public var nonConformingFloatDecodingStrategy: NonConformingFloatDecodingStrategy {
+        get { _nonConformingFloatDecodingStrategy }
+        set { _nonConformingFloatDecodingStrategy = newValue }
+    }
 
-    public var nonConformingFloatDecodingStrategy: NonConformingFloatDecodingStrategy
-
-    public enum NonConformingFloatDecodingStrategy {
+    public enum NonConformingFloatDecodingStrategy: Sendable {
         case `throw`
         case convertFromString(positiveInfinity: String, negativeInfinity: String, nan: String)
     }
 
-    public var dataDecodingStrategy: DataDecodingStrategy
+    @Synchronized
+    private var _dataDecodingStrategy: DataDecodingStrategy
+    public var dataDecodingStrategy: DataDecodingStrategy {
+        get { _dataDecodingStrategy }
+        set { _dataDecodingStrategy = newValue }
+    }
 
-    public enum DataDecodingStrategy {
+    public enum DataDecodingStrategy: Sendable {
         case deferredToData
         case base64
-        case custom((Decoder) throws -> Data)
+        case custom(@Sendable (Decoder) throws -> Data)
     }
 
-    public enum KeyDecodingStrategy {
+    public enum KeyDecodingStrategy: Sendable {
         case useDefaultKeys
         case convertFromSnakeCase
-        case custom(([CodingKey]) -> CodingKey)
+        case custom(@Sendable ([CodingKey]) -> CodingKey)
     }
 
-    public var keyDecodingStrategy: KeyDecodingStrategy
+    @Synchronized
+    private var _keyDecodingStrategy: KeyDecodingStrategy
+    public var keyDecodingStrategy: KeyDecodingStrategy {
+        get { _keyDecodingStrategy }
+        set { _keyDecodingStrategy = newValue }
+    }
 
-    public enum DateDecodingStrategy {
+    public enum DateDecodingStrategy: Sendable {
         case deferredToDate
         case secondsSince1970
         case millisecondsSince1970
         case iso8601
         case formatted(DateFormatter)
-        case custom((Decoder) throws -> Date)
+        case custom(@Sendable (Decoder) throws -> Date)
     }
 
-    public var dateDecodingStrategy: DateDecodingStrategy
+    @Synchronized
+    private var _dateDecodingStrategy: DateDecodingStrategy
+    public var dateDecodingStrategy: DateDecodingStrategy {
+        get { _dateDecodingStrategy }
+        set { _dateDecodingStrategy = newValue }
+    }
 
     var convertCase: Bool {
         get {
@@ -216,10 +237,10 @@ public final class ZippyJSONDecoder {
     }
 
     public init() {
-        keyDecodingStrategy = .useDefaultKeys
-        dataDecodingStrategy = .base64
-        dateDecodingStrategy = .deferredToDate
-        nonConformingFloatDecodingStrategy = .throw
+        _keyDecodingStrategy = .useDefaultKeys
+        _dataDecodingStrategy = .base64
+        _dateDecodingStrategy = .deferredToDate
+        _nonConformingFloatDecodingStrategy = .throw
     }
 }
 
@@ -1056,4 +1077,64 @@ extension __JSONDecoder : SingleValueDecodingContainer {
     }
 
     // End
+}
+
+@propertyWrapper
+private final class Synchronized<Value>: @unchecked Sendable {
+    private let lock: LockProtocol
+    private var _wrappedValue: Value
+
+    init(wrappedValue: Value) {
+        self.lock = Lock()
+        _wrappedValue = wrappedValue
+    }
+
+    var wrappedValue: Value {
+        get {
+            lock.withLock {
+                _wrappedValue
+            }
+        }
+        set {
+            lock.withLock {
+                _wrappedValue = newValue
+            }
+        }
+    }
+}
+
+private final class Lock: LockProtocol {
+    let innerLock: LockProtocol
+
+    init() {
+      // Use the lighter-weight `OSAllocatedUnfairLock` if available
+      if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+            innerLock = OSAllocatedUnfairLock()
+        } else {
+            innerLock = NSLock()
+        }
+    }
+
+    func withLock<T>(_ body: () throws -> T) rethrows -> T {
+        return try innerLock.withLock(body)
+    }
+}
+
+private protocol LockProtocol {
+    func withLock<T>(_ body: () throws -> T) rethrows -> T
+}
+
+extension NSLock: LockProtocol {
+    func withLock<T>(_ body: () throws -> T) rethrows -> T {
+        lock()
+        defer { unlock() }
+        return try body()
+    }
+}
+
+@available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+extension OSAllocatedUnfairLock: LockProtocol {
+  func withLock<T>(_ body: () throws -> T) rethrows -> T {
+    try withLockUnchecked { _ in try body() }
+  }
 }
