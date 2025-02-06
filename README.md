@@ -4,6 +4,8 @@
 [![Cocoapods compatible](https://img.shields.io/badge/Cocoapods-compatible-4BC51D.svg?style=flat)](https://cocoapods.com)
 [![SwiftPM compatible](https://img.shields.io/badge/SwiftPM-compatible%20%28iOS%29-brightgreen)](https://swift.org/package-manager/)
 
+### Note: JSONDecoder is faster than ZippyJSON for iOS 17+. The rest of this document describes the performance difference pre-iOS 17.
+
 ## Benchmarks
 
 <img src="misc/chart.svg" width="75%">
