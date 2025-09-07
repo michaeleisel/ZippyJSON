@@ -14,8 +14,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/michaeleisel/ZippyJSONCFamily",
       "state" : {
-        "revision" : "8abdd7a5e943afe68e7b03fdaa63b21c042a3893",
-        "version" : "1.2.9"
+        "revision" : "c1c0f88977359ea85b81e128b2d988e8250dfdae",
+        "version" : "1.2.14"
       }
     }
   ],

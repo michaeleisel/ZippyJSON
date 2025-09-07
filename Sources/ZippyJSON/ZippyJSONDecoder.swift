@@ -4,6 +4,22 @@ import Foundation
 import JJLISO8601DateFormatter
 import ZippyJSONCFamily
 
+@usableFromInline
+enum _UnboxDispatch<T: Decodable> {
+  @inline(__always)
+  static func run(_ value: Value, key: CodingKey?) throws -> T {
+    // general/fast path
+    fatalError("fast")
+  }
+}
+
+extension _UnboxDispatch where T: DictionaryWithoutKeyConversion {
+  @inline(__always)
+  static func run(_ value: Value, key: CodingKey?) throws -> T {
+    // special path — no runtime `is` checks
+    fatalError("dict")
+  }
+}
 #if canImport(Combine)
   import Combine
 
@@ -130,6 +146,8 @@ public final class ZippyJSONDecoder {
         if JNTErrorDidOccur(context) {
           throw swiftErrorFromError(context, decoder: decoder, key: nil)
         }
+          // try _UnboxDispatch<T>.run(value, key: nil)
+          // fatalError("yo")
         let result = try decoder.unbox(value, as: type, key: nil)
 
         if JNTErrorDidOccur(context) {
@@ -629,13 +647,31 @@ final private class __JSONDecoder: Decoder {
     }
   }
 
+@inline(__always)
+fileprivate func unbox<T: Decodable>(
+  _ value: Value,
+  as type: T.Type,
+  key: CodingKey?
+) throws -> T {
+    // fatalError()
+  // if T.self is DictionaryWithoutKeyConversion.Type {
+    if T.self is ExpressibleByDictionaryLiteral.Type {
+    return try unbox(value, as: T.self as! DictionaryWithoutKeyConversion.Type, key: nil)
+  }
+  return (try unboxFast_(value, as: type, key: key)) as! T
+}
+
   @inline(__always)
-  fileprivate func unbox<T: Decodable>(
+  fileprivate func unbox<T: Decodable & DictionaryWithoutKeyConversion>(
     _ value: Value,
     as type: T.Type,
     key: CodingKey?
   ) throws -> T {
-    return (try unbox_(value, as: type, key: key)) as! T
+      fatalError()
+    if T.self is DictionaryWithoutKeyConversion.Type {
+      return try unbox(value, as: T.self as! DictionaryWithoutKeyConversion.Type, key: nil)
+    }
+    return (try unboxFast_(value, as: type, key: key)) as! T
   }
 
   @inline(__always)
@@ -667,6 +703,36 @@ final private class __JSONDecoder: Decoder {
       as? DictionaryWithoutKeyConversion.Type
     {
       return try unbox(value, as: stringKeyedDictType, key: nil)
+    } else {
+      return try type.init(from: self)
+    }
+  }
+
+  @inline(__always)
+  fileprivate func unboxFast_(
+    _ value: Value,
+    as type: Decodable.Type,
+    key: CodingKey?
+  ) throws -> Any {
+    push(container: value, key: key)
+    defer { pop(shouldRemoveKey: key != nil) }
+    if type == Date.self || type == NSDate.self {
+      return try unbox(value, as: Date.self, key: nil)
+    } else if type == Data.self || type == NSData.self {
+      return try unbox(value, as: Data.self, key: nil)
+    } else if type == Decimal.self || type == NSDecimalNumber.self {
+      return try unbox(value, as: Decimal.self)
+    } else if type == URL.self || type == NSURL.self {
+      let urlString = try unbox(value, as: String.self, key: nil)
+      guard let url = URL(string: urlString) else {
+        throw DecodingError.dataCorrupted(
+          DecodingError.Context(
+            codingPath: codingPath,
+            debugDescription: "Invalid URL string."
+          )
+        )
+      }
+      return url
     } else {
       return try type.init(from: self)
     }
@@ -1427,9 +1493,21 @@ extension __JSONDecoder: SingleValueDecodingContainer {
   func decodeNil() -> Bool {
     return JNTDocumentDecodeNil(containers.topContainer)
   }
+    
+    
 
+    /*@inline(__always)
+    fileprivate func unboxNoKeyConversion<U: Decodable & DictionaryWithoutKeyConversion>(
+      _ value: Value
+    ) throws -> U {
+      // your special behavior
+      fatalError("implement me")
+    }*/
+
+    
   func decode<T>(_ type: T.Type) throws -> T where T: Decodable {
-    return try unbox(containers.topContainer, as: type, key: nil)
+      return try _UnboxDispatch<T>.run(value, key: nil)
+    // return try unbox(containers.topContainer, as: type, key: nil)
   }
 
   // SingleValueBegin
