@@ -606,7 +606,8 @@ final private class __JSONDecoder: Decoder {
           result[keyString] = try self.unbox_(
             subValue,
             as: type.elementType,
-            key: codingKey
+            key: codingKey,
+            dictionaryState: .possiblyDictionary
           )
         } catch {
           innerError = error
@@ -629,20 +630,40 @@ final private class __JSONDecoder: Decoder {
     }
   }
 
+  enum DictionaryState {
+    case notDictionary
+    case possiblyDictionary
+  }
+
   @inline(__always)
   fileprivate func unbox<T: Decodable>(
     _ value: Value,
     as type: T.Type,
-    key: CodingKey?
+    key: CodingKey?,
+    dictionaryState: DictionaryState
   ) throws -> T {
-    return (try unbox_(value, as: type, key: key)) as! T
+    // if T.self is ExpressibleByDictionaryLiteral.Type {
+    // }
+    // print("1 \(T.self is ExpressibleByDictionaryLiteral.Type)")
+    // print("2 \(T.self is Collection.Type)")
+    if T.self is DictionaryWithoutKeyConversion.Type {
+      return try unbox(
+        value,
+        as: type as! DictionaryWithoutKeyConversion.Type,
+        key: nil
+      )
+    }
+    return
+      (try unbox_(value, as: type, key: key, dictionaryState: .notDictionary))
+      as! T
   }
 
   @inline(__always)
   fileprivate func unbox_(
     _ value: Value,
     as type: Decodable.Type,
-    key: CodingKey?
+    key: CodingKey?,
+    dictionaryState: DictionaryState
   ) throws -> Any {
     push(container: value, key: key)
     defer { pop(shouldRemoveKey: key != nil) }
@@ -663,13 +684,13 @@ final private class __JSONDecoder: Decoder {
         )
       }
       return url
-    } else if let stringKeyedDictType = type
-      as? DictionaryWithoutKeyConversion.Type
+    }
+    if dictionaryState == .possiblyDictionary,
+      let stringKeyedDictType = type as? DictionaryWithoutKeyConversion.Type
     {
       return try unbox(value, as: stringKeyedDictType, key: nil)
-    } else {
-      return try type.init(from: self)
     }
+    return try type.init(from: self)
   }
 }
 
