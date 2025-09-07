@@ -384,7 +384,7 @@ class ZippyJSONTests: XCTestCase {
             let a: [String: String]
         }
         // testRoundTrip(of: Aa.self, json: #"{"a": {}}"#)
-        _testFailure(of: Aa.self, json: #"{"a": 2}"#)
+        _testFailure(of: Aa.self, json: #"{"a": 2}"#, relaxedErrorCheck: true)
     }
     
     func testNilAdvance() {

@@ -475,12 +475,22 @@ final private class __JSONDecoder: Decoder {
                                                                         debugDescription: "Invalid URL string."))
              }
             return url
-        } else if let stringKeyedDictType = type as? DictionaryWithoutKeyConversion.Type {
+        } else if keyDecodingStrategy.isNotDefault, let stringKeyedDictType = type as? DictionaryWithoutKeyConversion.Type {
             return try unbox(value, as: stringKeyedDictType, key: nil)
         } else {
             return try type.init(from: self)
         }
     }
+}
+
+extension ZippyJSONDecoder.KeyDecodingStrategy {
+  @inline(__always)
+  var isNotDefault: Bool {
+    switch self {
+    case .useDefaultKeys: false
+    default: true
+    }
+  }
 }
 
 extension __JSONDecoder {
