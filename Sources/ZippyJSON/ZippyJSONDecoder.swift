@@ -663,7 +663,7 @@ final private class __JSONDecoder: Decoder {
         )
       }
       return url
-    } else if let stringKeyedDictType = type
+    } else if keyDecodingStrategy.isNotDefault, let stringKeyedDictType = type
       as? DictionaryWithoutKeyConversion.Type
     {
       return try unbox(value, as: stringKeyedDictType, key: nil)
